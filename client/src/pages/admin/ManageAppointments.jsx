@@ -17,6 +17,7 @@ import {
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import api from "../../services/api";
+import mockApi from "../../services/mockApi";
 import { format } from "date-fns";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import PageTransition, {
@@ -455,8 +456,8 @@ const itemVariants = {
 const ManageAppointments = () => {
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
-  const [doctors, setDoctors] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [doctorFilter, setDoctorFilter] = useState("");
@@ -476,23 +477,31 @@ const ManageAppointments = () => {
       try {
         setLoading(true);
 
-        // Fetch appointments
-        const appointmentsResponse = await api.get("/appointments");
-        setAppointments(appointmentsResponse.data);
-        setFilteredAppointments(appointmentsResponse.data);
+        // Use mockApi to get appointments
+        const appointmentsResponse = await mockApi.getAppointments();
 
-        // Fetch doctors
-        const doctorsResponse = await api.get("/doctors");
-        setDoctors(doctorsResponse.data);
+        // Use mockApi to get patients
+        const patientsResponse = await mockApi.getPatients();
 
-        // Fetch patients
-        const patientsResponse = await api.get("/patients");
-        setPatients(patientsResponse.data);
+        // Use mockApi to get doctors
+        const doctorsResponse = await mockApi.getDoctors();
 
+        setAppointments(
+          Array.isArray(appointmentsResponse) ? appointmentsResponse : []
+        );
+        setFilteredAppointments(
+          Array.isArray(appointmentsResponse) ? appointmentsResponse : []
+        );
+        setPatients(Array.isArray(patientsResponse) ? patientsResponse : []);
+        setDoctors(Array.isArray(doctorsResponse) ? doctorsResponse : []);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
-        setError("Failed to load data. Please try again later.");
+        setAppointments([]);
+        setFilteredAppointments([]);
+        setPatients([]);
+        setDoctors([]);
+        setError("Failed to load appointments. Please try again later.");
         setLoading(false);
       }
     };
@@ -504,8 +513,21 @@ const ManageAppointments = () => {
     applyFilters();
   }, [searchTerm, statusFilter, doctorFilter, dateFilter, appointments]);
 
-  const applyFilters = () => {
-    let filtered = [...appointments];
+  const applyFilters = (sourceAppointments) => {
+    const appointmentsToFilter = sourceAppointments || appointments;
+
+    if (
+      !Array.isArray(appointmentsToFilter) ||
+      appointmentsToFilter.length === 0
+    ) {
+      // Only update state if no custom source was provided
+      if (!sourceAppointments) {
+        setFilteredAppointments([]);
+      }
+      return [];
+    }
+
+    let filtered = [...appointmentsToFilter];
 
     // Apply search filter
     if (searchTerm) {
@@ -542,6 +564,8 @@ const ManageAppointments = () => {
     if (dateFilter) {
       const filterDate = new Date(dateFilter);
       filtered = filtered.filter((appointment) => {
+        if (!appointment.appointmentDate) return false;
+
         const appointmentDate = new Date(appointment.appointmentDate);
         return (
           appointmentDate.getDate() === filterDate.getDate() &&
@@ -551,7 +575,12 @@ const ManageAppointments = () => {
       });
     }
 
-    setFilteredAppointments(filtered);
+    // Only update state if no custom source was provided
+    if (!sourceAppointments) {
+      setFilteredAppointments(filtered);
+    }
+
+    return filtered;
   };
 
   const formatDate = (dateString) => {
@@ -595,45 +624,97 @@ const ManageAppointments = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!formData) {
+      setError("Invalid form data");
+      return;
+    }
+
     try {
-      if (modalMode === "edit") {
-        await api.put(`/appointments/${currentAppointment._id}/status`, {
-          status: formData.status,
-          notes: formData.notes,
-        });
+      if (
+        modalMode === "edit" &&
+        currentAppointment &&
+        currentAppointment._id
+      ) {
+        // Use mockApi to update an appointment
+        await mockApi.updateAppointment(currentAppointment._id, formData);
 
         // Update local state
-        const updatedAppointments = appointments.map((appointment) =>
-          appointment._id === currentAppointment._id
-            ? { ...appointment, status: formData.status, notes: formData.notes }
-            : appointment
+        const updatedAppointments = appointments.map((a) =>
+          a._id === currentAppointment._id ? { ...a, ...formData } : a
         );
-
         setAppointments(updatedAppointments);
-      } else if (modalMode === "delete") {
-        await api.delete(`/appointments/${currentAppointment._id}`);
 
-        // Update local state
-        const updatedAppointments = appointments.filter(
-          (appointment) => appointment._id !== currentAppointment._id
-        );
-
-        setAppointments(updatedAppointments);
+        // Re-apply filters
+        const filtered = applyFilters(updatedAppointments);
+        setFilteredAppointments(filtered);
+      } else {
+        setError("Invalid operation or missing appointment data");
+        return;
       }
 
       closeModal();
     } catch (error) {
-      console.error("Error updating appointment:", error);
-      setError("Failed to update appointment. Please try again.");
+      console.error("Error saving appointment:", error);
+      setError("Failed to save appointment. Please try again.");
+    }
+  };
+
+  const handleDeleteAppointment = async () => {
+    if (!currentAppointment || !currentAppointment._id) {
+      setError("Cannot delete: Invalid appointment data");
+      closeModal();
+      return;
+    }
+
+    try {
+      // Use mockApi to delete an appointment
+      await mockApi.deleteAppointment(currentAppointment._id);
+
+      // Remove the appointment from the local state
+      const updatedAppointments = appointments.filter(
+        (a) => a._id !== currentAppointment._id
+      );
+      setAppointments(updatedAppointments);
+
+      // Apply filters directly to the updated appointments
+      const filtered = applyFilters(updatedAppointments);
+      setFilteredAppointments(filtered || []);
+
+      closeModal();
+    } catch (error) {
+      console.error("Error deleting appointment:", error);
+      setError("Failed to delete appointment. Please try again.");
+    }
+  };
+
+  const handleStatusChange = async (appointmentId, newStatus) => {
+    if (!appointmentId || !newStatus) {
+      setError("Cannot update: Invalid appointment data or status");
+      return;
+    }
+
+    try {
+      // Use mockApi to update an appointment's status
+      await mockApi.updateAppointment(appointmentId, { status: newStatus });
+
+      // Update the appointment in the local state
+      const updatedAppointments = appointments.map((a) =>
+        a._id === appointmentId ? { ...a, status: newStatus } : a
+      );
+      setAppointments(updatedAppointments);
+
+      // Apply filters directly to the updated appointments
+      const filtered = applyFilters(updatedAppointments);
+      setFilteredAppointments(filtered || []);
+    } catch (error) {
+      console.error("Error updating appointment status:", error);
+      setError("Failed to update appointment status. Please try again.");
     }
   };
 
@@ -740,7 +821,7 @@ const ManageAppointments = () => {
           </FilterGroup>
         </FiltersContainer>
 
-        {filteredAppointments.length === 0 ? (
+        {!filteredAppointments || filteredAppointments.length === 0 ? (
           <EmptyState
             as={motion.div}
             initial={{ opacity: 0, y: 20 }}
@@ -797,18 +878,25 @@ const ManageAppointments = () => {
                       {appointment.doctor?.name || "Unknown"}
                     </TableCell>
                     <TableCell>
-                      {formatDate(appointment.appointmentDate)}
+                      {appointment.appointmentDate
+                        ? formatDate(appointment.appointmentDate)
+                        : "N/A"}
                     </TableCell>
                     <TableCell>
-                      {formatTime(appointment.startTime)} -{" "}
-                      {formatTime(appointment.endTime)}
+                      {appointment.startTime
+                        ? formatTime(appointment.startTime)
+                        : "N/A"}{" "}
+                      -{" "}
+                      {appointment.endTime
+                        ? formatTime(appointment.endTime)
+                        : "N/A"}
                     </TableCell>
                     <TableCell>
                       {appointment.appointmentType || "General"}
                     </TableCell>
                     <TableCell>
                       <StatusBadge
-                        status={appointment.status}
+                        status={appointment.status || "pending"}
                         initial={{ scale: 0.8, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         transition={{ delay: 0.1 * index }}
@@ -819,8 +907,10 @@ const ManageAppointments = () => {
                         {appointment.status === "cancelled" && (
                           <FaTimes size={12} />
                         )}
-                        {appointment.status.charAt(0).toUpperCase() +
-                          appointment.status.slice(1)}
+                        {(appointment.status || "pending")
+                          .charAt(0)
+                          .toUpperCase() +
+                          (appointment.status || "pending").slice(1)}
                       </StatusBadge>
                     </TableCell>
                     <TableCell>
@@ -1071,7 +1161,10 @@ const ManageAppointments = () => {
                       <Button variant="secondary" onClick={closeModal}>
                         Cancel
                       </Button>
-                      <Button variant="danger" onClick={handleSubmit}>
+                      <Button
+                        variant="danger"
+                        onClick={handleDeleteAppointment}
+                      >
                         Delete Appointment
                       </Button>
                     </ModalButtons>

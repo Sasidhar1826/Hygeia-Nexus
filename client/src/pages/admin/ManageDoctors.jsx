@@ -13,7 +13,7 @@ import {
 } from "react-icons/fa";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
-import api from "../../services/api";
+import mockApi from "../../services/mockApi";
 
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -89,6 +89,7 @@ const DoctorCard = styled(Card)`
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 `;
 
 const DoctorHeader = styled.div`
@@ -184,6 +185,13 @@ const ActionButtons = styled.div`
   display: flex;
   gap: ${(props) => props.theme.spacing(1)};
   margin-top: auto;
+  flex-wrap: wrap;
+
+  > button {
+    margin-bottom: ${(props) => props.theme.spacing(1)};
+    flex: 1 0 auto;
+    min-width: auto;
+  }
 `;
 
 const LoadingMessage = styled.div`
@@ -208,7 +216,7 @@ const Modal = styled(motion.div)`
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: ${(props) => props.theme.zIndex.modal};
+  z-index: 1000;
   padding: ${(props) => props.theme.spacing(2)};
 `;
 
@@ -307,8 +315,16 @@ const ManageDoctors = () => {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await api.get("/departments");
-        setDepartments(response.data);
+        // Mock data for departments
+        const mockDepartments = [
+          { _id: "1", name: "Cardiology" },
+          { _id: "2", name: "Neurology" },
+          { _id: "3", name: "Pediatrics" },
+          { _id: "4", name: "Orthopedics" },
+          { _id: "5", name: "Dermatology" },
+          { _id: "6", name: "Radiology" },
+        ];
+        setDepartments(mockDepartments);
       } catch (error) {
         console.error("Error fetching departments:", error);
         setError("Failed to load departments. Please try again later.");
@@ -322,13 +338,23 @@ const ManageDoctors = () => {
     const fetchDoctors = async () => {
       try {
         setLoading(true);
-        const response = await api.get("/doctors");
-        setDoctors(response.data);
-        setFilteredDoctors(response.data);
-        setLoading(false);
+        // Use mockApi to get doctors
+        const response = await mockApi.getDoctors();
+        if (response && Array.isArray(response)) {
+          setDoctors(response);
+          setFilteredDoctors(response);
+        } else {
+          console.error("Invalid response format:", response);
+          setDoctors([]);
+          setFilteredDoctors([]);
+          setError("Failed to load doctors: Invalid data format");
+        }
       } catch (error) {
         console.error("Error fetching doctors:", error);
+        setDoctors([]);
+        setFilteredDoctors([]);
         setError("Failed to load doctors. Please try again later.");
+      } finally {
         setLoading(false);
       }
     };
@@ -337,16 +363,25 @@ const ManageDoctors = () => {
   }, []);
 
   useEffect(() => {
-    applyFilters();
+    if (Array.isArray(doctors)) {
+      applyFilters();
+    }
   }, [searchTerm, selectedDepartment, selectedStatus, doctors]);
 
-  const applyFilters = () => {
-    let filtered = [...doctors];
+  const applyFilters = (doctorsToFilter) => {
+    const sourceArray = doctorsToFilter || doctors;
+
+    if (!Array.isArray(sourceArray)) {
+      setFilteredDoctors([]);
+      return [];
+    }
+
+    let filtered = [...sourceArray];
 
     if (searchTerm) {
       filtered = filtered.filter(
         (doctor) =>
-          doctor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (doctor.specialization &&
             doctor.specialization
               .toLowerCase()
@@ -358,8 +393,7 @@ const ManageDoctors = () => {
 
     if (selectedDepartment) {
       filtered = filtered.filter(
-        (doctor) =>
-          doctor.department && doctor.department._id === selectedDepartment
+        (doctor) => doctor.department === selectedDepartment
       );
     }
 
@@ -368,7 +402,12 @@ const ManageDoctors = () => {
       filtered = filtered.filter((doctor) => doctor.isActive === isActive);
     }
 
-    setFilteredDoctors(filtered);
+    // Only set state if we're not working with a passed array
+    if (!doctorsToFilter) {
+      setFilteredDoctors(filtered);
+    }
+
+    return filtered;
   };
 
   const openAddModal = () => {
@@ -432,16 +471,34 @@ const ManageDoctors = () => {
           password: "tempPassword123", // This should be changed by the doctor on first login
           role: "doctor",
         };
-        await api.post("/auth/register", doctorData);
-      } else {
-        await api.put(`/doctors/${currentDoctor._id}`, formData);
+
+        // Use mockApi to add a doctor
+        const response = await mockApi.addDoctor(doctorData);
+        if (response) {
+          // Refresh the doctors list
+          const doctorsResponse = await mockApi.getDoctors();
+          if (Array.isArray(doctorsResponse)) {
+            setDoctors(doctorsResponse);
+            setFilteredDoctors(doctorsResponse);
+          }
+          closeModal();
+        }
+      } else if (currentDoctor?._id) {
+        // Use mockApi to update a doctor
+        const response = await mockApi.updateDoctor(
+          currentDoctor._id,
+          formData
+        );
+        if (response) {
+          // Refresh the doctors list
+          const doctorsResponse = await mockApi.getDoctors();
+          if (Array.isArray(doctorsResponse)) {
+            setDoctors(doctorsResponse);
+            setFilteredDoctors(doctorsResponse);
+          }
+          closeModal();
+        }
       }
-
-      // Refresh the doctors list
-      const response = await api.get("/doctors");
-      setDoctors(response.data);
-
-      closeModal();
     } catch (error) {
       console.error("Error saving doctor:", error);
       setError("Failed to save doctor. Please try again.");
@@ -449,8 +506,14 @@ const ManageDoctors = () => {
   };
 
   const handleToggleStatus = async (doctor) => {
+    if (!doctor || !doctor._id) {
+      setError("Cannot update doctor status: Invalid doctor data");
+      return;
+    }
+
     try {
-      await api.put(`/doctors/${doctor._id}`, {
+      // Use mockApi to update a doctor's status
+      await mockApi.updateDoctor(doctor._id, {
         isActive: !doctor.isActive,
       });
 
@@ -459,6 +522,10 @@ const ManageDoctors = () => {
         d._id === doctor._id ? { ...d, isActive: !doctor.isActive } : d
       );
       setDoctors(updatedDoctors);
+
+      // Apply filters on the updated doctors array
+      const filteredResults = applyFilters(updatedDoctors);
+      setFilteredDoctors(filteredResults);
     } catch (error) {
       console.error("Error toggling doctor status:", error);
       setError("Failed to update doctor status. Please try again.");
@@ -466,20 +533,41 @@ const ManageDoctors = () => {
   };
 
   const handleDelete = async (doctorId) => {
+    if (!doctorId) {
+      setError("Cannot delete doctor: Invalid doctor ID");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this doctor?")) {
       return;
     }
 
     try {
-      await api.delete(`/doctors/${doctorId}`);
+      // Use mockApi to delete a doctor
+      await mockApi.deleteDoctor(doctorId);
 
       // Remove the doctor from the local state
       const updatedDoctors = doctors.filter((d) => d._id !== doctorId);
       setDoctors(updatedDoctors);
+
+      // Apply filters on the updated doctors array
+      const filteredResults = applyFilters(updatedDoctors);
+      setFilteredDoctors(filteredResults);
     } catch (error) {
       console.error("Error deleting doctor:", error);
       setError("Failed to delete doctor. Please try again.");
     }
+  };
+
+  // Helper function to get department name by ID
+  const getDepartmentName = (departmentId) => {
+    if (!departmentId) return "Not Assigned";
+    if (!Array.isArray(departments)) return "Unknown";
+
+    const department = departments.find(
+      (dept) => dept && dept._id === departmentId
+    );
+    return department ? department.name : "Unknown";
   };
 
   if (loading) {
@@ -512,11 +600,13 @@ const ManageDoctors = () => {
           onChange={(e) => setSelectedDepartment(e.target.value)}
         >
           <option value="">All Departments</option>
-          {departments.map((dept) => (
-            <option key={dept._id} value={dept._id}>
-              {dept.name}
-            </option>
-          ))}
+          {departments &&
+            departments.length > 0 &&
+            departments.map((dept) => (
+              <option key={dept._id} value={dept._id}>
+                {dept.name}
+              </option>
+            ))}
         </FilterSelect>
 
         <FilterSelect
@@ -531,7 +621,7 @@ const ManageDoctors = () => {
 
       {error && <ErrorMessage>{error}</ErrorMessage>}
 
-      {filteredDoctors.length === 0 ? (
+      {!filteredDoctors || filteredDoctors.length === 0 ? (
         <ErrorMessage>No doctors found matching your criteria.</ErrorMessage>
       ) : (
         <DoctorsGrid>
@@ -548,7 +638,7 @@ const ManageDoctors = () => {
                   )}
                   {doctor.department && (
                     <DoctorDepartment>
-                      {doctor.department.name}
+                      {getDepartmentName(doctor.department)}
                     </DoctorDepartment>
                   )}
                   <StatusBadge active={doctor.isActive}>
@@ -674,7 +764,6 @@ const ManageDoctors = () => {
                   name="department"
                   value={formData.department}
                   onChange={handleInputChange}
-                  required
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (

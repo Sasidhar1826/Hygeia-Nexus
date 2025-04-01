@@ -20,6 +20,12 @@ router.get("/", async (req, res) => {
 // Get department by ID
 router.get("/:id", async (req, res) => {
   try {
+    // Special case for "all" to return all departments
+    if (req.params.id === "all") {
+      const departments = await Department.find({ isActive: true });
+      return res.json(departments);
+    }
+
     const department = await Department.findById(req.params.id);
     if (!department) {
       return res.status(404).json({ message: "Department not found" });

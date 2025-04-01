@@ -82,6 +82,12 @@ export const theme = {
   transitions: {
     default: "300ms ease-in-out",
   },
+  zIndex: {
+    modal: 1000,
+    dropdown: 100,
+    header: 90,
+    footer: 10,
+  },
 };
 
 export const darkTheme = {

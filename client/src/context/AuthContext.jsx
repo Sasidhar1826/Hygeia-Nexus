@@ -10,33 +10,40 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [useMockApi, setUseMockApi] = useState(false);
+  // For development, we're always using mock API
+  const [useMockApi, setUseMockApi] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const storedUser = localStorage.getItem("user");
-    const token = localStorage.getItem("token");
+    const initializeAuth = async () => {
+      try {
+        // Check if user is already logged in
+        const storedUser = localStorage.getItem("user");
+        const token = localStorage.getItem("token");
 
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
-    }
+        if (storedUser && token) {
+          // Using mock API for development, just set the user without validation
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (err) {
+        console.error("Auth initialization error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Check if we should use mock API
-    // This would be based on environment variables or connectivity check
-    // For demo purposes, we'll default to using mock API
-    setUseMockApi(true);
-
-    setLoading(false);
+    initializeAuth();
   }, []);
 
   const login = async (email, password, role = "") => {
     try {
       setError(null);
 
-      // Use either mock or real API based on connectivity
-      const response = useMockApi
-        ? await mockAuthService.login(email, password, role)
-        : await api.login(email, password, role);
+      // Always use mock API for development
+      const response = await mockAuthService.login(email, password, role);
+
+      if (!response || !response.token) {
+        throw new Error("Invalid login response");
+      }
 
       // Store token and user in localStorage
       localStorage.setItem("token", response.token);
@@ -45,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       setUser(response.user);
       return response.user;
     } catch (err) {
+      console.error("Login error:", err);
       setError(err.response?.data?.message || "Login failed");
       throw err;
     }
@@ -54,10 +62,8 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
 
-      // Use either mock or real API based on connectivity
-      const response = useMockApi
-        ? await mockAuthService.signup(userData)
-        : await api.signup(userData);
+      // Always use mock API for development
+      const response = await mockAuthService.signup(userData);
 
       // Store token and user in localStorage
       localStorage.setItem("token", response.token);
@@ -72,11 +78,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    if (useMockApi) {
-      mockAuthService.logout();
-    } else {
-      api.logout();
-    }
+    mockAuthService.logout();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);

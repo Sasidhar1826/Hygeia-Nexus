@@ -386,7 +386,7 @@ const Home = () => {
     <HomeContainer>
       <HeroSection>
         <HeroBackground>
-          <img src="/images/hospital-hero.jpg" alt="Hospital" />
+          <img src="/images/hospital-hero.jpg.png" alt="Hospital" />
         </HeroBackground>
         <HeroContent>
           <HeroTitle

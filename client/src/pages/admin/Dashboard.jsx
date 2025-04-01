@@ -13,11 +13,45 @@ import {
   FaPlus,
   FaArrowRight,
 } from "react-icons/fa";
-import { Line, Bar, Doughnut } from "react-chartjs-2";
 import Card from "../../components/ui/Card";
 import api from "../../services/api";
 import { Link } from "react-router-dom";
+import mockApi from "../../services/mockApi";
 
+// Import Chart.js in a way that works with React
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  LineController,
+  BarController,
+  DoughnutController,
+} from "chart.js";
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  LineController,
+  BarController,
+  DoughnutController
+);
+
+// Component styling
 const DashboardContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
 `;
@@ -230,42 +264,177 @@ const AlertMessage = styled.div`
   color: ${(props) => props.theme.colors.text.secondary};
 `;
 
+// Create a custom chart component that properly handles cleanup
+const ChartContainer = styled.div`
+  position: relative;
+  width: 100%;
+  height: 300px;
+`;
+
+// Simple chart components with proper cleanup
+const LineChartComponent = ({ data, options, id }) => {
+  const chartRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (canvasRef.current) {
+      // Clear any existing chart
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+
+      // Create new chart
+      const ctx = canvasRef.current.getContext("2d");
+      chartRef.current = new ChartJS(ctx, {
+        type: "line",
+        data: data,
+        options: options || {},
+      });
+    }
+
+    // Cleanup function
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+    };
+  }, [data, options]);
+
+  return <canvas ref={canvasRef} id={id} />;
+};
+
+const BarChartComponent = ({ data, options, id }) => {
+  const chartRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (canvasRef.current) {
+      // Clear any existing chart
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+
+      // Create new chart
+      const ctx = canvasRef.current.getContext("2d");
+      chartRef.current = new ChartJS(ctx, {
+        type: "bar",
+        data: data,
+        options: options || {},
+      });
+    }
+
+    // Cleanup function
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+    };
+  }, [data, options]);
+
+  return <canvas ref={canvasRef} id={id} />;
+};
+
+const DoughnutChartComponent = ({ data, options, id }) => {
+  const chartRef = React.useRef(null);
+  const canvasRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (canvasRef.current) {
+      // Clear any existing chart
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+
+      // Create new chart
+      const ctx = canvasRef.current.getContext("2d");
+      chartRef.current = new ChartJS(ctx, {
+        type: "doughnut",
+        data: data,
+        options: options || {},
+      });
+    }
+
+    // Cleanup function
+    return () => {
+      if (chartRef.current) {
+        chartRef.current.destroy();
+      }
+    };
+  }, [data, options]);
+
+  return <canvas ref={canvasRef} id={id} key={id} />;
+};
+
+// A wrapper component that handles errors gracefully
+const ChartErrorBoundary = ({ children }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <div style={{ textAlign: "center", padding: "40px" }}>
+        <p>Chart could not be loaded</p>
+      </div>
+    );
+  }
+
+  return (
+    <React.Fragment>
+      {React.cloneElement(children, {
+        onError: () => setHasError(true),
+      })}
+    </React.Fragment>
+  );
+};
+
 const Dashboard = () => {
   const [stats, setStats] = useState({
-    doctors: 0,
-    patients: 0,
-    appointments: 0,
-    revenue: 0,
-    labTechnicians: 0,
+    totalPatients: 0,
+    totalDoctors: 0,
+    totalAppointments: 0,
+    pendingAppointments: 0,
+    recentAppointments: [],
   });
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchStats = async () => {
       try {
-        // In a real app, you would fetch this data from your API
-        // const response = await api.get('/admin/dashboard');
-        // setStats(response.data.stats);
+        setLoading(true);
 
-        // For now, we'll use mock data
+        // Use mockApi to get data
+        const patients = await mockApi.getPatients();
+        const doctors = await mockApi.getDoctors();
+        const appointments = await mockApi.getAppointments();
+
+        // Calculate stats
+        const pendingAppointments = appointments.filter(
+          (a) => a.status === "pending" || a.status === "scheduled"
+        ).length;
+
+        const recentAppointments = appointments
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 5);
+
         setStats({
-          doctors: 24,
-          patients: 1458,
-          appointments: 385,
-          revenue: 28750,
-          labTechnicians: 12,
+          totalPatients: patients.length,
+          totalDoctors: doctors.length,
+          totalAppointments: appointments.length,
+          pendingAppointments,
+          recentAppointments,
         });
 
         setLoading(false);
-      } catch (err) {
-        setError("Failed to load dashboard data");
+      } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+        setError(
+          "Failed to load dashboard statistics. Please try again later."
+        );
         setLoading(false);
       }
     };
 
-    fetchDashboardData();
+    fetchStats();
   }, []);
 
   // Mock data for charts
@@ -310,6 +479,20 @@ const Dashboard = () => {
     ],
   };
 
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "top",
+      },
+      title: {
+        display: true,
+        text: "Chart",
+      },
+    },
+  };
+
   const alerts = [
     {
       id: 1,
@@ -350,7 +533,7 @@ const Dashboard = () => {
             <FaUserMd />
           </StatIcon>
           <StatContent>
-            <StatValue>{stats.doctors}</StatValue>
+            <StatValue>{stats.totalDoctors}</StatValue>
             <StatLabel>Doctors</StatLabel>
           </StatContent>
         </StatCard>
@@ -364,7 +547,7 @@ const Dashboard = () => {
             <FaUserInjured />
           </StatIcon>
           <StatContent>
-            <StatValue>{stats.patients}</StatValue>
+            <StatValue>{stats.totalPatients}</StatValue>
             <StatLabel>Patients</StatLabel>
           </StatContent>
         </StatCard>
@@ -378,7 +561,7 @@ const Dashboard = () => {
             <FaCalendarAlt />
           </StatIcon>
           <StatContent>
-            <StatValue>{stats.appointments}</StatValue>
+            <StatValue>{stats.totalAppointments}</StatValue>
             <StatLabel>Appointments</StatLabel>
           </StatContent>
         </StatCard>
@@ -392,8 +575,8 @@ const Dashboard = () => {
             <FaFlask />
           </StatIcon>
           <StatContent>
-            <StatValue>{stats.labTechnicians}</StatValue>
-            <StatLabel>Lab Technicians</StatLabel>
+            <StatValue>{stats.pendingAppointments}</StatValue>
+            <StatLabel>Pending Appointments</StatLabel>
           </StatContent>
         </StatCard>
       </StatsGrid>
@@ -505,27 +688,69 @@ const Dashboard = () => {
       <ChartsGrid>
         <ChartCard>
           <ChartTitle>Appointment Trends</ChartTitle>
-          <Line
-            data={appointmentData}
-            options={{ maintainAspectRatio: false, height: 300 }}
-          />
+          <ChartContainer>
+            <ChartErrorBoundary>
+              <LineChartComponent
+                data={appointmentData}
+                options={{
+                  ...chartOptions,
+                  plugins: {
+                    ...chartOptions.plugins,
+                    title: {
+                      ...chartOptions.plugins.title,
+                      text: "Appointment Trends",
+                    },
+                  },
+                }}
+                id="appointment-chart"
+              />
+            </ChartErrorBoundary>
+          </ChartContainer>
         </ChartCard>
 
         <ChartCard>
           <ChartTitle>Department Distribution</ChartTitle>
-          <Doughnut
-            data={departmentData}
-            options={{ maintainAspectRatio: false, height: 300 }}
-          />
+          <ChartContainer>
+            <ChartErrorBoundary>
+              <DoughnutChartComponent
+                data={departmentData}
+                options={{
+                  ...chartOptions,
+                  plugins: {
+                    ...chartOptions.plugins,
+                    title: {
+                      ...chartOptions.plugins.title,
+                      text: "Department Distribution",
+                    },
+                  },
+                }}
+                id="department-chart"
+              />
+            </ChartErrorBoundary>
+          </ChartContainer>
         </ChartCard>
       </ChartsGrid>
 
       <ChartCard>
         <ChartTitle>Monthly Revenue</ChartTitle>
-        <Bar
-          data={revenueData}
-          options={{ maintainAspectRatio: false, height: 300 }}
-        />
+        <ChartContainer>
+          <ChartErrorBoundary>
+            <BarChartComponent
+              data={revenueData}
+              options={{
+                ...chartOptions,
+                plugins: {
+                  ...chartOptions.plugins,
+                  title: {
+                    ...chartOptions.plugins.title,
+                    text: "Monthly Revenue",
+                  },
+                },
+              }}
+              id="revenue-chart"
+            />
+          </ChartErrorBoundary>
+        </ChartContainer>
       </ChartCard>
 
       <AlertsSection>

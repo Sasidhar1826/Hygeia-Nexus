@@ -15,8 +15,7 @@ import {
   FaCalendarAlt,
   FaUserMd,
 } from "react-icons/fa";
-import { mockAuthService } from "../../services/mockApi";
-import Layout from "../../components/layout/Layout";
+import mockApi from "../../services/mockApi";
 
 // Styled Components
 const PageContainer = styled.div`
@@ -382,7 +381,7 @@ const ManageLabTechnicians = () => {
   useEffect(() => {
     const fetchTechnicians = async () => {
       try {
-        const data = await mockAuthService.getLabTechnicians();
+        const data = await mockApi.getLabTechnicians();
         setTechnicians(data);
         setFilteredTechnicians(data);
       } catch (error) {
@@ -425,7 +424,7 @@ const ManageLabTechnicians = () => {
 
   const confirmDelete = async () => {
     try {
-      await mockAuthService.deleteLabTechnician(technicianToDelete._id);
+      await mockApi.deleteLabTechnician(technicianToDelete._id);
       setTechnicians((prev) =>
         prev.filter((t) => t._id !== technicianToDelete._id)
       );
@@ -487,10 +486,7 @@ const ManageLabTechnicians = () => {
     try {
       if (editingTechnician) {
         // Update existing technician
-        await mockAuthService.updateLabTechnician(
-          editingTechnician._id,
-          formData
-        );
+        await mockApi.updateLabTechnician(editingTechnician._id, formData);
 
         // Update the list
         setTechnicians((prev) =>
@@ -500,7 +496,7 @@ const ManageLabTechnicians = () => {
         );
       } else {
         // Add new technician
-        const newTechnician = await mockAuthService.addLabTechnician({
+        const newTechnician = await mockApi.addLabTechnician({
           ...formData,
           role: "labtechnician",
         });
@@ -517,281 +513,281 @@ const ManageLabTechnicians = () => {
   };
 
   return (
-    <Layout title="Manage Lab Technicians">
-      <PageContainer>
-        <Header>
-          <Title>
-            <FaFlask /> Manage Lab Technicians
-          </Title>
-          <ActionButton
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleOpenModal()}
+    <PageContainer>
+      <Header>
+        <Title>
+          <FaFlask />
+          Manage Lab Technicians
+        </Title>
+        <ActionButton
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => handleOpenModal()}
+        >
+          <FaPlus />
+          Add Lab Technician
+        </ActionButton>
+      </Header>
+
+      <SearchContainer>
+        <SearchInput>
+          <FaSearch />
+          <input
+            type="text"
+            placeholder="Search technicians by name, department, or specialization..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+          />
+        </SearchInput>
+        <FilterButton>
+          <FaFilter /> Filter
+        </FilterButton>
+      </SearchContainer>
+
+      {loading ? (
+        <LoadingContainer>
+          <p>Loading lab technicians...</p>
+        </LoadingContainer>
+      ) : filteredTechnicians.length === 0 ? (
+        <NoResults>
+          <FaFlask />
+          <h2>No lab technicians found</h2>
+          <p>Try adjusting your search or add a new lab technician</p>
+        </NoResults>
+      ) : (
+        <TechniciansGrid>
+          {filteredTechnicians.map((technician) => (
+            <TechnicianCard
+              key={technician._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <TechnicianHeader>
+                <div>
+                  <TechnicianName>{technician.name}</TechnicianName>
+                  {technician.specialization && (
+                    <TechnicianSpecialization>
+                      {technician.specialization}
+                    </TechnicianSpecialization>
+                  )}
+                </div>
+                <TechnicianActions>
+                  <IconButton onClick={() => handleOpenModal(technician)}>
+                    <FaEdit />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => handleDeleteTechnician(technician)}
+                  >
+                    <FaTrash />
+                  </IconButton>
+                  <IconButton>
+                    <FaEye />
+                  </IconButton>
+                </TechnicianActions>
+              </TechnicianHeader>
+              <TechnicianContent>
+                <TechnicianDetail>
+                  <DetailLabel>Email:</DetailLabel>
+                  <DetailValue>{technician.email}</DetailValue>
+                </TechnicianDetail>
+                <TechnicianDetail>
+                  <DetailLabel>Department:</DetailLabel>
+                  <DetailValue>
+                    {technician.department || "Not assigned"}
+                  </DetailValue>
+                </TechnicianDetail>
+                <TechnicianDetail>
+                  <DetailLabel>Qualification:</DetailLabel>
+                  <DetailValue>
+                    {technician.qualification || "Not provided"}
+                  </DetailValue>
+                </TechnicianDetail>
+                <TechnicianDetail>
+                  <DetailLabel>Experience:</DetailLabel>
+                  <DetailValue>
+                    {technician.experience
+                      ? `${technician.experience} years`
+                      : "Not provided"}
+                  </DetailValue>
+                </TechnicianDetail>
+                <TechnicianDetail>
+                  <DetailLabel>Phone:</DetailLabel>
+                  <DetailValue>
+                    {technician.contactNumber || "Not provided"}
+                  </DetailValue>
+                </TechnicianDetail>
+              </TechnicianContent>
+            </TechnicianCard>
+          ))}
+        </TechniciansGrid>
+      )}
+
+      <AnimatePresence>
+        {showModal && (
+          <ModalOverlay
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleCloseModal}
           >
-            <FaPlus /> Add New Technician
-          </ActionButton>
-        </Header>
+            <ModalContent
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ModalHeader>
+                <ModalTitle>
+                  {editingTechnician
+                    ? "Edit Lab Technician"
+                    : "Add New Lab Technician"}
+                </ModalTitle>
+                <CloseButton onClick={handleCloseModal}>
+                  <FaTimes />
+                </CloseButton>
+              </ModalHeader>
 
-        <SearchContainer>
-          <SearchInput>
-            <FaSearch />
-            <input
-              type="text"
-              placeholder="Search technicians by name, department, or specialization..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-            />
-          </SearchInput>
-          <FilterButton>
-            <FaFilter /> Filter
-          </FilterButton>
-        </SearchContainer>
+              <Form onSubmit={handleSubmit}>
+                <FormGroup>
+                  <FormLabel>Full Name</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </FormGroup>
 
-        {loading ? (
-          <LoadingContainer>
-            <p>Loading lab technicians...</p>
-          </LoadingContainer>
-        ) : filteredTechnicians.length === 0 ? (
-          <NoResults>
-            <FaFlask />
-            <h2>No lab technicians found</h2>
-            <p>Try adjusting your search or add a new lab technician</p>
-          </NoResults>
-        ) : (
-          <TechniciansGrid>
-            {filteredTechnicians.map((technician) => (
-              <TechnicianCard
-                key={technician._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <TechnicianHeader>
-                  <div>
-                    <TechnicianName>{technician.name}</TechnicianName>
-                    {technician.specialization && (
-                      <TechnicianSpecialization>
-                        {technician.specialization}
-                      </TechnicianSpecialization>
-                    )}
-                  </div>
-                  <TechnicianActions>
-                    <IconButton onClick={() => handleOpenModal(technician)}>
-                      <FaEdit />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => handleDeleteTechnician(technician)}
-                    >
-                      <FaTrash />
-                    </IconButton>
-                    <IconButton>
-                      <FaEye />
-                    </IconButton>
-                  </TechnicianActions>
-                </TechnicianHeader>
-                <TechnicianContent>
-                  <TechnicianDetail>
-                    <DetailLabel>Email:</DetailLabel>
-                    <DetailValue>{technician.email}</DetailValue>
-                  </TechnicianDetail>
-                  <TechnicianDetail>
-                    <DetailLabel>Department:</DetailLabel>
-                    <DetailValue>
-                      {technician.department || "Not assigned"}
-                    </DetailValue>
-                  </TechnicianDetail>
-                  <TechnicianDetail>
-                    <DetailLabel>Qualification:</DetailLabel>
-                    <DetailValue>
-                      {technician.qualification || "Not provided"}
-                    </DetailValue>
-                  </TechnicianDetail>
-                  <TechnicianDetail>
-                    <DetailLabel>Experience:</DetailLabel>
-                    <DetailValue>
-                      {technician.experience
-                        ? `${technician.experience} years`
-                        : "Not provided"}
-                    </DetailValue>
-                  </TechnicianDetail>
-                  <TechnicianDetail>
-                    <DetailLabel>Phone:</DetailLabel>
-                    <DetailValue>
-                      {technician.contactNumber || "Not provided"}
-                    </DetailValue>
-                  </TechnicianDetail>
-                </TechnicianContent>
-              </TechnicianCard>
-            ))}
-          </TechniciansGrid>
+                <FormGroup>
+                  <FormLabel>Email</FormLabel>
+                  <FormInput
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Phone Number</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="contactNumber"
+                    value={formData.contactNumber}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Department</FormLabel>
+                  <FormSelect
+                    name="department"
+                    value={formData.department}
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select Department</option>
+                    <option value="Biochemistry">Biochemistry</option>
+                    <option value="Hematology">Hematology</option>
+                    <option value="Microbiology">Microbiology</option>
+                    <option value="Pathology">Pathology</option>
+                    <option value="Immunology">Immunology</option>
+                    <option value="Cytology">Cytology</option>
+                    <option value="Radiology">Radiology</option>
+                  </FormSelect>
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Specialization</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="specialization"
+                    value={formData.specialization}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Qualification</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="qualification"
+                    value={formData.qualification}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Experience (Years)</FormLabel>
+                  <FormInput
+                    type="number"
+                    name="experience"
+                    value={formData.experience}
+                    onChange={handleInputChange}
+                    min="0"
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Joining Date</FormLabel>
+                  <FormInput
+                    type="date"
+                    name="joiningDate"
+                    value={formData.joiningDate}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <SubmitButton
+                  type="submit"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {editingTechnician ? "Update Technician" : "Add Technician"}
+                </SubmitButton>
+              </Form>
+            </ModalContent>
+          </ModalOverlay>
         )}
 
-        <AnimatePresence>
-          {showModal && (
-            <ModalOverlay
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={handleCloseModal}
+        {showConfirmDialog && (
+          <ModalOverlay
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <ConfirmDialog
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
             >
-              <ModalContent
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ModalHeader>
-                  <ModalTitle>
-                    {editingTechnician
-                      ? "Edit Lab Technician"
-                      : "Add New Lab Technician"}
-                  </ModalTitle>
-                  <CloseButton onClick={handleCloseModal}>
-                    <FaTimes />
-                  </CloseButton>
-                </ModalHeader>
-
-                <Form onSubmit={handleSubmit}>
-                  <FormGroup>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Email</FormLabel>
-                    <FormInput
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="contactNumber"
-                      value={formData.contactNumber}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Department</FormLabel>
-                    <FormSelect
-                      name="department"
-                      value={formData.department}
-                      onChange={handleInputChange}
-                    >
-                      <option value="">Select Department</option>
-                      <option value="Biochemistry">Biochemistry</option>
-                      <option value="Hematology">Hematology</option>
-                      <option value="Microbiology">Microbiology</option>
-                      <option value="Pathology">Pathology</option>
-                      <option value="Immunology">Immunology</option>
-                      <option value="Cytology">Cytology</option>
-                      <option value="Radiology">Radiology</option>
-                    </FormSelect>
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Specialization</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="specialization"
-                      value={formData.specialization}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Qualification</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="qualification"
-                      value={formData.qualification}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Experience (Years)</FormLabel>
-                    <FormInput
-                      type="number"
-                      name="experience"
-                      value={formData.experience}
-                      onChange={handleInputChange}
-                      min="0"
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Joining Date</FormLabel>
-                    <FormInput
-                      type="date"
-                      name="joiningDate"
-                      value={formData.joiningDate}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <SubmitButton
-                    type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {editingTechnician ? "Update Technician" : "Add Technician"}
-                  </SubmitButton>
-                </Form>
-              </ModalContent>
-            </ModalOverlay>
-          )}
-
-          {showConfirmDialog && (
-            <ModalOverlay
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <ConfirmDialog
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-              >
-                <ConfirmMessage>
-                  Are you sure you want to delete lab technician "
-                  {technicianToDelete.name}"? This action cannot be undone.
-                </ConfirmMessage>
-                <ConfirmActions>
-                  <CancelButton
-                    onClick={cancelDelete}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <FaTimes /> Cancel
-                  </CancelButton>
-                  <ConfirmButton
-                    onClick={confirmDelete}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <FaCheck /> Confirm
-                  </ConfirmButton>
-                </ConfirmActions>
-              </ConfirmDialog>
-            </ModalOverlay>
-          )}
-        </AnimatePresence>
-      </PageContainer>
-    </Layout>
+              <ConfirmMessage>
+                Are you sure you want to delete lab technician "
+                {technicianToDelete.name}"? This action cannot be undone.
+              </ConfirmMessage>
+              <ConfirmActions>
+                <CancelButton
+                  onClick={cancelDelete}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <FaTimes /> Cancel
+                </CancelButton>
+                <ConfirmButton
+                  onClick={confirmDelete}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <FaCheck /> Confirm
+                </ConfirmButton>
+              </ConfirmActions>
+            </ConfirmDialog>
+          </ModalOverlay>
+        )}
+      </AnimatePresence>
+    </PageContainer>
   );
 };
 

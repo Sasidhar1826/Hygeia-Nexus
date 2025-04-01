@@ -6,6 +6,8 @@ import {
   Navigate,
   useLocation,
   Outlet,
+  createBrowserRouter,
+  RouterProvider,
 } from "react-router-dom";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import Layout from "./components/layout/Layout";
@@ -17,6 +19,7 @@ import PrivateRoute, {
 import { AnimatePresence } from "framer-motion";
 import { Player } from "@lottiefiles/react-lottie-player";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
+import AdminLayout from "./components/dashboard/AdminLayout";
 
 // Loading animation
 const LoadingFallback = () => (
@@ -56,6 +59,11 @@ const MedicalRecords = React.lazy(() => import("./pages/MedicalRecords"));
 const AIDiagnostics = React.lazy(() => import("./pages/AIDiagnostics"));
 const Pharmacy = React.lazy(() => import("./pages/Pharmacy"));
 
+// Doctor Pages
+const DoctorTelemedicine = React.lazy(() =>
+  import("./pages/doctor/DoctorTelemedicine")
+);
+
 // Admin Pages
 const AdminDashboard = React.lazy(() => import("./pages/admin/Dashboard"));
 const ManageDepartments = React.lazy(() =>
@@ -84,7 +92,11 @@ const AnimatedRoutes = () => {
 
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Routes
+        location={location}
+        key={location.pathname}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
         {/* Public Routes */}
         <Route
           path="/"
@@ -192,6 +204,14 @@ const AnimatedRoutes = () => {
             }
           />
           <Route
+            path="doctor-telemedicine"
+            element={
+              <RoleBasedRoute roles={["doctor"]}>
+                <DoctorTelemedicine />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
             path="patients"
             element={
               <RoleBasedRoute roles={["doctor", "admin"]}>
@@ -244,54 +264,20 @@ const AnimatedRoutes = () => {
 
           {/* Admin Routes - Only accessible to admin role */}
           <Route
-            path="admin/dashboard"
+            path="admin"
             element={
               <RoleBasedRoute roles={["admin"]}>
-                <AdminDashboard />
+                <AdminLayout />
               </RoleBasedRoute>
             }
-          />
-          <Route
-            path="admin/departments"
-            element={
-              <RoleBasedRoute roles={["admin"]}>
-                <ManageDepartments />
-              </RoleBasedRoute>
-            }
-          />
-          <Route
-            path="admin/doctors"
-            element={
-              <RoleBasedRoute roles={["admin"]}>
-                <ManageDoctors />
-              </RoleBasedRoute>
-            }
-          />
-          <Route
-            path="admin/appointments"
-            element={
-              <RoleBasedRoute roles={["admin"]}>
-                <ManageAppointments />
-              </RoleBasedRoute>
-            }
-          />
-          {/* Now we can uncomment the patient and lab technician routes */}
-          <Route
-            path="admin/patients"
-            element={
-              <RoleBasedRoute roles={["admin"]}>
-                <ManagePatients />
-              </RoleBasedRoute>
-            }
-          />
-          <Route
-            path="admin/lab-technicians"
-            element={
-              <RoleBasedRoute roles={["admin"]}>
-                <ManageLabTechnicians />
-              </RoleBasedRoute>
-            }
-          />
+          >
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="departments" element={<ManageDepartments />} />
+            <Route path="doctors" element={<ManageDoctors />} />
+            <Route path="appointments" element={<ManageAppointments />} />
+            <Route path="patients" element={<ManagePatients />} />
+            <Route path="lab-technicians" element={<ManageLabTechnicians />} />
+          </Route>
         </Route>
 
         {/* Catch-all route */}
@@ -312,7 +298,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Router>
+        <Router
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <AnimatedRoutes />
         </Router>
       </AuthProvider>

@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   FaPlus,
   FaEdit,
   FaTrash,
   FaSearch,
   FaHospital,
+  FaUserMd,
+  FaMoneyBillWave,
+  FaCalendarCheck,
+  FaEye,
   FaCheck,
   FaTimes,
 } from "react-icons/fa";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import api from "../../services/api";
+import mockApi from "../../services/mockApi";
 
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -71,7 +76,7 @@ const DepartmentCard = styled(Card)`
 const DepartmentImage = styled.div`
   height: 150px;
   background-image: url(${(props) =>
-    props.image || "/images/department-placeholder.jpg"});
+    props.image || "https://via.placeholder.com/300x150?text=Department"});
   background-size: cover;
   background-position: center;
   border-top-left-radius: ${(props) => props.theme.borderRadius.medium};
@@ -213,6 +218,7 @@ const ManageDepartments = () => {
   const [filteredDepartments, setFilteredDepartments] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("add"); // "add" or "edit"
   const [currentDepartment, setCurrentDepartment] = useState(null);
@@ -220,11 +226,16 @@ const ManageDepartments = () => {
     name: "",
     description: "",
     image: "",
-    isActive: true,
+    headDoctor: "",
+    location: "",
+    contactNumber: "",
+    consultationFee: "",
   });
+  const [doctors, setDoctors] = useState([]);
 
   useEffect(() => {
     fetchDepartments();
+    fetchDoctors();
   }, []);
 
   useEffect(() => {
@@ -243,13 +254,25 @@ const ManageDepartments = () => {
   const fetchDepartments = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/departments/all");
-      setDepartments(response.data);
-      setFilteredDepartments(response.data);
+      // Use mockApi to get departments
+      const departmentsData = await mockApi.getDepartments();
+      setDepartments(departmentsData);
+      setFilteredDepartments(departmentsData);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching departments:", error);
+      setError("Failed to load departments. Please try again later.");
       setLoading(false);
+    }
+  };
+
+  const fetchDoctors = async () => {
+    try {
+      // Use mockApi to get doctors
+      const response = await mockApi.getDoctors();
+      setDoctors(response);
+    } catch (error) {
+      console.error("Error fetching doctors:", error);
     }
   };
 
@@ -259,7 +282,10 @@ const ManageDepartments = () => {
       name: "",
       description: "",
       image: "",
-      isActive: true,
+      headDoctor: "",
+      location: "",
+      contactNumber: "",
+      consultationFee: "",
     });
     setIsModalOpen(true);
   };
@@ -271,7 +297,10 @@ const ManageDepartments = () => {
       name: department.name,
       description: department.description,
       image: department.image || "",
-      isActive: department.isActive,
+      headDoctor: department.headDoctor || "",
+      location: department.location || "",
+      contactNumber: department.contactNumber || "",
+      consultationFee: department.consultationFee || "",
     });
     setIsModalOpen(true);
   };
@@ -282,11 +311,8 @@ const ManageDepartments = () => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : value,
-    });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -294,38 +320,88 @@ const ManageDepartments = () => {
 
     try {
       if (modalMode === "add") {
-        await api.post("/departments", formData);
+        // Add default isActive: true for new departments
+        const departmentData = {
+          ...formData,
+          isActive: true,
+        };
+
+        // Use mockApi to add a new department
+        const newDepartment = await mockApi.addDepartment(departmentData);
+
+        // Update local state with the new department
+        setDepartments([...departments, newDepartment]);
+        setFilteredDepartments([...filteredDepartments, newDepartment]);
       } else {
-        await api.put(`/departments/${currentDepartment._id}`, formData);
+        // Preserve the isActive status when updating
+        const departmentData = {
+          ...formData,
+          isActive: currentDepartment.isActive,
+        };
+
+        // Use mockApi to update the department
+        const updatedDepartment = await mockApi.updateDepartment(
+          currentDepartment._id,
+          departmentData
+        );
+
+        // Update local state with the updated department
+        const updatedDepartments = departments.map((dept) =>
+          dept._id === currentDepartment._id ? updatedDepartment : dept
+        );
+
+        setDepartments(updatedDepartments);
+        setFilteredDepartments(updatedDepartments);
       }
 
-      fetchDepartments();
       closeModal();
     } catch (error) {
       console.error("Error saving department:", error);
+      setError("Failed to save department. Please try again.");
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this department?")) {
-      try {
-        await api.delete(`/departments/${id}`);
-        fetchDepartments();
-      } catch (error) {
-        console.error("Error deleting department:", error);
-      }
+  const handleDelete = async (departmentId) => {
+    try {
+      // Use mockApi to delete department
+      await mockApi.deleteDepartment(departmentId);
+
+      // Update local state after successful deletion
+      const updatedDepartments = departments.filter(
+        (dept) => dept._id !== departmentId
+      );
+
+      setDepartments(updatedDepartments);
+      setFilteredDepartments(updatedDepartments);
+    } catch (error) {
+      console.error("Error deleting department:", error);
+      setError("Failed to delete department. Please try again.");
     }
   };
 
   const handleToggleStatus = async (department) => {
     try {
-      await api.put(`/departments/${department._id}`, {
+      // Create a modified version of the department with toggled isActive state
+      const updatedDepartment = {
         ...department,
         isActive: !department.isActive,
-      });
-      fetchDepartments();
+      };
+
+      // Use mockApi to update department (or simulate update)
+      await mockApi.updateDepartment(department._id, updatedDepartment);
+
+      // Update the local state directly
+      const updatedDepartments = departments.map((dept) =>
+        dept._id === department._id
+          ? { ...dept, isActive: !dept.isActive }
+          : dept
+      );
+
+      setDepartments(updatedDepartments);
+      setFilteredDepartments(updatedDepartments);
     } catch (error) {
       console.error("Error updating department status:", error);
+      setError("Failed to update department status. Please try again.");
     }
   };
 
@@ -468,15 +544,51 @@ const ManageDepartments = () => {
               </FormGroup>
 
               <FormGroup>
-                <Label>
-                  <input
-                    type="checkbox"
-                    name="isActive"
-                    checked={formData.isActive}
-                    onChange={handleInputChange}
-                  />{" "}
-                  Active
-                </Label>
+                <Label htmlFor="headDoctor">Head Doctor</Label>
+                <Input
+                  type="text"
+                  id="headDoctor"
+                  name="headDoctor"
+                  value={formData.headDoctor}
+                  onChange={handleInputChange}
+                  placeholder="Enter head doctor's name"
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <Label htmlFor="location">Location</Label>
+                <Input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleInputChange}
+                  placeholder="Enter department location"
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <Label htmlFor="contactNumber">Contact Number</Label>
+                <Input
+                  type="text"
+                  id="contactNumber"
+                  name="contactNumber"
+                  value={formData.contactNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter department contact number"
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <Label htmlFor="consultationFee">Consultation Fee</Label>
+                <Input
+                  type="text"
+                  id="consultationFee"
+                  name="consultationFee"
+                  value={formData.consultationFee}
+                  onChange={handleInputChange}
+                  placeholder="Enter consultation fee"
+                />
               </FormGroup>
 
               <ModalButtons>

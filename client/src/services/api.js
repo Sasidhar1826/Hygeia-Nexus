@@ -10,6 +10,12 @@ const api = axios.create({
   },
 });
 
+// Initialize token if it exists in localStorage
+const token = localStorage.getItem("token");
+if (token) {
+  api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+}
+
 // Add request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
@@ -26,11 +32,20 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Log API errors for debugging
+    console.error("API Error:", error.response?.data || error.message);
+
     // Handle 401 Unauthorized errors
     if (error.response && error.response.status === 401) {
+      console.warn("Unauthorized API request - clearing auth data");
+      // Clear auth data
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+
+      // Only redirect if not on login page already to prevent redirect loops
+      if (!window.location.pathname.includes("/login")) {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }
@@ -38,8 +53,20 @@ api.interceptors.response.use(
 
 // Auth services
 const login = async (email, password, role = "") => {
-  const response = await api.post("/auth/login", { email, password, role });
-  return response.data;
+  try {
+    const response = await api.post("/auth/login", { email, password, role });
+    const { token } = response.data;
+
+    // Set token in headers for all future requests
+    if (token) {
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error("Login error:", error.response?.data || error.message);
+    throw error;
+  }
 };
 
 const signup = async (userData) => {

@@ -21,7 +21,7 @@ const LoginContainer = styled.div`
 
 const LoginImage = styled.div`
   flex: 1;
-  background-image: url("/login-bg.jpg");
+  background-image: url("/images/login-bg.jpg");
   background-size: cover;
   background-position: center;
   display: none;

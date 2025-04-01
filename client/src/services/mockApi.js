@@ -16,9 +16,81 @@ const mockUsers = [
     password: "password123",
     role: "doctor",
     specialization: "Cardiology",
-    department: "Cardiology",
+    department: "1",
     experience: "10 years",
     contactNumber: "+1 (555) 123-4567",
+    isActive: true,
+    bio: "Board-certified cardiologist with 10 years of experience specializing in heart disease prevention and treatment.",
+    education: "MD from Johns Hopkins University",
+    consultationFee: "250",
+    profileImage: "https://randomuser.me/api/portraits/women/32.jpg",
+  },
+  {
+    _id: "8",
+    name: "Dr. Robert Chen",
+    email: "robert.chen@example.com",
+    password: "password123",
+    role: "doctor",
+    specialization: "Neurology",
+    department: "2",
+    experience: "15 years",
+    contactNumber: "+1 (555) 222-3333",
+    isActive: true,
+    bio: "Experienced neurologist specializing in stroke management and neurodegenerative disorders.",
+    education:
+      "MD from Stanford University, Neurology Residency at Mayo Clinic",
+    consultationFee: "300",
+    profileImage: "https://randomuser.me/api/portraits/men/45.jpg",
+  },
+  {
+    _id: "9",
+    name: "Dr. Maria Lopez",
+    email: "maria.lopez@example.com",
+    password: "password123",
+    role: "doctor",
+    specialization: "Pediatrics",
+    department: "3",
+    experience: "8 years",
+    contactNumber: "+1 (555) 444-5555",
+    isActive: true,
+    bio: "Compassionate pediatrician dedicated to child health and preventive care.",
+    education:
+      "MD from UCLA, Pediatric Residency at Children's Hospital Los Angeles",
+    consultationFee: "200",
+    profileImage: "https://randomuser.me/api/portraits/women/68.jpg",
+  },
+  {
+    _id: "10",
+    name: "Dr. James Wilson",
+    email: "james.wilson@example.com",
+    password: "password123",
+    role: "doctor",
+    specialization: "Orthopedics",
+    department: "4",
+    experience: "12 years",
+    contactNumber: "+1 (555) 666-7777",
+    isActive: true,
+    bio: "Orthopedic surgeon specializing in sports medicine and joint replacements.",
+    education:
+      "MD from University of Pennsylvania, Orthopedic Surgery Fellowship at HSS",
+    consultationFee: "350",
+    profileImage: "https://randomuser.me/api/portraits/men/22.jpg",
+  },
+  {
+    _id: "11",
+    name: "Dr. Aisha Patel",
+    email: "aisha.patel@example.com",
+    password: "password123",
+    role: "doctor",
+    specialization: "Dermatology",
+    department: "5",
+    experience: "6 years",
+    contactNumber: "+1 (555) 888-9999",
+    isActive: false,
+    bio: "Dermatologist with expertise in skin cancer detection and cosmetic procedures.",
+    education: "MD from NYU, Dermatology Residency at Mount Sinai",
+    consultationFee: "275",
+    profileImage: "https://randomuser.me/api/portraits/women/41.jpg",
   },
   {
     _id: "3",
@@ -142,17 +214,77 @@ const mockLabReports = [
   },
 ];
 
+// Mock departments
+const mockDepartments = [
+  {
+    _id: "1",
+    name: "Cardiology",
+    description: "Specialized in heart-related issues and treatments.",
+    image: "https://via.placeholder.com/300x150?text=Cardiology",
+    headDoctor: "2", // Dr. Sarah Johnson
+    location: "Block A, 3rd Floor",
+    contactNumber: "+1 (555) 123-4567",
+    consultationFee: "150",
+    isActive: true,
+  },
+  {
+    _id: "2",
+    name: "Neurology",
+    description: "Deals with disorders of the nervous system.",
+    image: "https://via.placeholder.com/300x150?text=Neurology",
+    headDoctor: null,
+    location: "Block B, 2nd Floor",
+    contactNumber: "+1 (555) 987-6543",
+    consultationFee: "200",
+    isActive: true,
+  },
+  {
+    _id: "3",
+    name: "Pediatrics",
+    description: "Medical care for infants, children, and adolescents.",
+    image: "https://via.placeholder.com/300x150?text=Pediatrics",
+    headDoctor: null,
+    location: "Block C, 1st Floor",
+    contactNumber: "+1 (555) 456-7890",
+    consultationFee: "120",
+    isActive: true,
+  },
+  {
+    _id: "4",
+    name: "Orthopedics",
+    description: "Focuses on the musculoskeletal system.",
+    image: "https://via.placeholder.com/300x150?text=Orthopedics",
+    headDoctor: null,
+    location: "Block D, 2nd Floor",
+    contactNumber: "+1 (555) 789-0123",
+    consultationFee: "180",
+    isActive: false,
+  },
+];
+
 // Helper function to simulate API delay
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Helper function to filter users by role
 const getUsersByRole = (role) => {
-  return mockUsers
-    .filter((user) => user.role === role)
-    .map((user) => {
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword;
-    });
+  try {
+    if (!Array.isArray(mockUsers)) {
+      console.error("mockUsers is not an array:", mockUsers);
+      return [];
+    }
+
+    return mockUsers
+      .filter((user) => user && user.role === role)
+      .map((user) => {
+        if (!user) return null;
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      })
+      .filter(Boolean); // Remove any null entries
+  } catch (error) {
+    console.error("Error in getUsersByRole:", error);
+    return [];
+  }
 };
 
 // Auth services
@@ -249,8 +381,14 @@ export const mockAuthService = {
     const user = localStorage.getItem("user");
     return user ? JSON.parse(user) : null;
   },
+};
 
-  // Mock service for appointments
+// Main API service for CRUD operations
+const mockApi = {
+  // Also include auth methods for compatibility
+  ...mockAuthService,
+
+  // Appointments
   getAppointments: async (filters = {}) => {
     await delay(500);
 
@@ -272,6 +410,12 @@ export const mockAuthService = {
     if (filters.status) {
       filteredAppointments = filteredAppointments.filter(
         (a) => a.status === filters.status
+      );
+    }
+
+    if (filters.date) {
+      filteredAppointments = filteredAppointments.filter(
+        (a) => a.appointmentDate === filters.date
       );
     }
 
@@ -306,7 +450,7 @@ export const mockAuthService = {
     const newAppointment = {
       _id: (mockAppointments.length + 1).toString(),
       ...appointmentData,
-      status: "scheduled",
+      status: appointmentData.status || "scheduled",
       createdAt: new Date().toISOString(),
     };
 
@@ -314,7 +458,36 @@ export const mockAuthService = {
     return newAppointment;
   },
 
-  // Mock service for lab reports
+  updateAppointment: async (id, appointmentData) => {
+    await delay(600);
+
+    const appointmentIndex = mockAppointments.findIndex((a) => a._id === id);
+    if (appointmentIndex === -1) {
+      throw { response: { data: { message: "Appointment not found" } } };
+    }
+
+    // Update appointment data
+    mockAppointments[appointmentIndex] = {
+      ...mockAppointments[appointmentIndex],
+      ...appointmentData,
+    };
+
+    return mockAppointments[appointmentIndex];
+  },
+
+  deleteAppointment: async (id) => {
+    await delay(500);
+
+    const appointmentIndex = mockAppointments.findIndex((a) => a._id === id);
+    if (appointmentIndex === -1) {
+      throw { response: { data: { message: "Appointment not found" } } };
+    }
+
+    mockAppointments.splice(appointmentIndex, 1);
+    return { success: true, message: "Appointment deleted successfully" };
+  },
+
+  // Lab reports
   getLabReports: async (filters = {}) => {
     await delay(500);
 
@@ -371,7 +544,7 @@ export const mockAuthService = {
     return newReport;
   },
 
-  // Patient management services
+  // Patient management
   getPatients: async () => {
     await delay(500);
     return getUsersByRole("patient");
@@ -447,7 +620,7 @@ export const mockAuthService = {
     return { success: true, message: "Patient deleted successfully" };
   },
 
-  // Lab Technician management services
+  // Lab Technician management
   getLabTechnicians: async () => {
     await delay(500);
     return getUsersByRole("labtechnician");
@@ -524,6 +697,147 @@ export const mockAuthService = {
     mockUsers.splice(techIndex, 1);
     return { success: true, message: "Lab technician deleted successfully" };
   },
+
+  // Doctor management
+  getDoctors: async () => {
+    try {
+      await delay(500);
+      const doctors = getUsersByRole("doctor");
+      return Array.isArray(doctors) ? doctors : [];
+    } catch (error) {
+      console.error("Error getting doctors:", error);
+      return [];
+    }
+  },
+
+  getDoctorById: async (id) => {
+    await delay(300);
+    const doctor = mockUsers.find((u) => u._id === id && u.role === "doctor");
+
+    if (!doctor) {
+      throw { response: { data: { message: "Doctor not found" } } };
+    }
+
+    const { password, ...doctorData } = doctor;
+    return doctorData;
+  },
+
+  addDoctor: async (doctorData) => {
+    await delay(800);
+
+    // Check if email already exists
+    const existingUser = mockUsers.find((u) => u.email === doctorData.email);
+    if (existingUser) {
+      throw { response: { data: { message: "Email already in use" } } };
+    }
+
+    const newDoctor = {
+      _id: (mockUsers.length + 1).toString(),
+      name: doctorData.name,
+      password: doctorData.password || "defaultPassword123", // In a real app, you'd generate a secure password
+      role: "doctor",
+      isActive: true,
+      ...doctorData,
+    };
+
+    mockUsers.push(newDoctor);
+
+    const { password, ...doctorWithoutPassword } = newDoctor;
+    return doctorWithoutPassword;
+  },
+
+  updateDoctor: async (id, doctorData) => {
+    await delay(600);
+
+    const doctorIndex = mockUsers.findIndex(
+      (u) => u._id === id && u.role === "doctor"
+    );
+    if (doctorIndex === -1) {
+      throw { response: { data: { message: "Doctor not found" } } };
+    }
+
+    // Update doctor data
+    mockUsers[doctorIndex] = {
+      ...mockUsers[doctorIndex],
+      ...doctorData,
+      name: doctorData.name || mockUsers[doctorIndex].name,
+    };
+
+    const { password, ...updatedDoctor } = mockUsers[doctorIndex];
+    return updatedDoctor;
+  },
+
+  deleteDoctor: async (id) => {
+    await delay(500);
+
+    const doctorIndex = mockUsers.findIndex(
+      (u) => u._id === id && u.role === "doctor"
+    );
+    if (doctorIndex === -1) {
+      throw { response: { data: { message: "Doctor not found" } } };
+    }
+
+    mockUsers.splice(doctorIndex, 1);
+    return { success: true, message: "Doctor deleted successfully" };
+  },
+
+  // Department management
+  getDepartments: async () => {
+    await delay(500);
+    return [...mockDepartments];
+  },
+
+  getDepartmentById: async (id) => {
+    await delay(300);
+    const department = mockDepartments.find((d) => d._id === id);
+
+    if (!department) {
+      throw { response: { data: { message: "Department not found" } } };
+    }
+
+    return department;
+  },
+
+  addDepartment: async (departmentData) => {
+    await delay(800);
+
+    const newDepartment = {
+      _id: (mockDepartments.length + 1).toString(),
+      ...departmentData,
+    };
+
+    mockDepartments.push(newDepartment);
+    return newDepartment;
+  },
+
+  updateDepartment: async (id, departmentData) => {
+    await delay(600);
+
+    const departmentIndex = mockDepartments.findIndex((d) => d._id === id);
+    if (departmentIndex === -1) {
+      throw { response: { data: { message: "Department not found" } } };
+    }
+
+    // Update department data
+    mockDepartments[departmentIndex] = {
+      ...mockDepartments[departmentIndex],
+      ...departmentData,
+    };
+
+    return mockDepartments[departmentIndex];
+  },
+
+  deleteDepartment: async (id) => {
+    await delay(500);
+
+    const departmentIndex = mockDepartments.findIndex((d) => d._id === id);
+    if (departmentIndex === -1) {
+      throw { response: { data: { message: "Department not found" } } };
+    }
+
+    mockDepartments.splice(departmentIndex, 1);
+    return { success: true, message: "Department deleted successfully" };
+  },
 };
 
-export default mockAuthService;
+export default mockApi;

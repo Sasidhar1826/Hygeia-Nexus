@@ -16,13 +16,15 @@ import {
   FaCheckCircle,
   FaTimesCircle,
   FaFilter,
+  FaMoneyBillWave,
 } from "react-icons/fa";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import api from "../services/api";
+import mockApi from "../services/mockApi";
 import { useAuth } from "../context/AuthContext";
 
-// Setup the localizer for the calendar
+// Initialize the localizer
 const localizer = momentLocalizer(moment);
 
 const PageContainer = styled.div`
@@ -312,21 +314,33 @@ const Appointments = () => {
         queryParams.date = moment(dateFilter).format("YYYY-MM-DD");
       }
 
-      const response = await api.get("/appointments", { params: queryParams });
+      // Use user ID for filtering if the user is a patient or doctor
+      if (user.role === "patient") {
+        queryParams.patient = user._id;
+      } else if (user.role === "doctor") {
+        queryParams.doctor = user._id;
+      }
+
+      // Use mockApi instead of direct API call
+      const response = await mockApi.getAppointments(queryParams);
 
       // Transform appointments for calendar
-      const formattedAppointments = response.data.map((appointment) => ({
+      const formattedAppointments = response.map((appointment) => ({
         id: appointment._id,
         title:
           user.role === "patient"
-            ? `Dr. ${appointment.doctor.name} - ${appointment.reason}`
-            : `${appointment.patient.name} - ${appointment.reason}`,
+            ? `Dr. ${appointment.doctor?.name || "Unknown"} - ${
+                appointment.reason || "Consultation"
+              }`
+            : `${appointment.patient?.name || "Unknown"} - ${
+                appointment.reason || "Consultation"
+              }`,
         start: new Date(
           appointment.appointmentDate + "T" + appointment.startTime
         ),
         end: new Date(appointment.appointmentDate + "T" + appointment.endTime),
-        type: appointment.type,
-        status: appointment.status,
+        type: appointment.type || "in-person",
+        status: appointment.status || "pending",
         resource: appointment,
       }));
 
@@ -357,12 +371,21 @@ const Appointments = () => {
 
   const handleCancelAppointment = async () => {
     try {
-      await api.patch(`/appointments/${selectedAppointment._id}/status`, {
+      // In a real app, we would update the appointment's status via API
+      // For now, we'll use a simulated approach with the mock data
+      const updatedAppointment = {
+        ...selectedAppointment,
         status: "cancelled",
-      });
+      };
 
-      // Update the appointments list
-      fetchAppointments();
+      // Find and update the appointment in the local array
+      const updatedAppointments = appointments.map((app) =>
+        app.id === selectedAppointment._id
+          ? { ...app, status: "cancelled", resource: updatedAppointment }
+          : app
+      );
+
+      setAppointments(updatedAppointments);
       handleCloseModal();
     } catch (error) {
       console.error("Error cancelling appointment:", error);
@@ -372,12 +395,21 @@ const Appointments = () => {
 
   const handleConfirmAppointment = async () => {
     try {
-      await api.patch(`/appointments/${selectedAppointment._id}/status`, {
+      // In a real app, we would update the appointment's status via API
+      // For now, we'll use a simulated approach with the mock data
+      const updatedAppointment = {
+        ...selectedAppointment,
         status: "confirmed",
-      });
+      };
 
-      // Update the appointments list
-      fetchAppointments();
+      // Find and update the appointment in the local array
+      const updatedAppointments = appointments.map((app) =>
+        app.id === selectedAppointment._id
+          ? { ...app, status: "confirmed", resource: updatedAppointment }
+          : app
+      );
+
+      setAppointments(updatedAppointments);
       handleCloseModal();
     } catch (error) {
       console.error("Error confirming appointment:", error);
@@ -387,12 +419,21 @@ const Appointments = () => {
 
   const handleCompleteAppointment = async () => {
     try {
-      await api.patch(`/appointments/${selectedAppointment._id}/status`, {
+      // In a real app, we would update the appointment's status via API
+      // For now, we'll use a simulated approach with the mock data
+      const updatedAppointment = {
+        ...selectedAppointment,
         status: "completed",
-      });
+      };
 
-      // Update the appointments list
-      fetchAppointments();
+      // Find and update the appointment in the local array
+      const updatedAppointments = appointments.map((app) =>
+        app.id === selectedAppointment._id
+          ? { ...app, status: "completed", resource: updatedAppointment }
+          : app
+      );
+
+      setAppointments(updatedAppointments);
       handleCloseModal();
     } catch (error) {
       console.error("Error completing appointment:", error);
@@ -547,8 +588,7 @@ const Appointments = () => {
                     "dddd, MMMM D, YYYY"
                   )}
                   <br />
-                  {selectedAppointment.startTime} -{" "}
-                  {selectedAppointment.endTime}
+                  {selectedAppointment.startTime} -{selectedAppointment.endTime}
                 </DetailValue>
               </DetailContent>
             </AppointmentDetail>
@@ -559,9 +599,13 @@ const Appointments = () => {
               </DetailIcon>
               <DetailContent>
                 <DetailLabel>Doctor</DetailLabel>
-                <DetailValue>Dr. {selectedAppointment.doctor.name}</DetailValue>
+                <DetailValue>
+                  {selectedAppointment.doctor?.name
+                    ? `Dr. ${selectedAppointment.doctor.name}`
+                    : "Not assigned"}
+                </DetailValue>
                 <DetailValue style={{ fontSize: "0.9rem", color: "#666" }}>
-                  {selectedAppointment.doctor.specialization}
+                  {selectedAppointment.doctor?.specialization || ""}
                 </DetailValue>
               </DetailContent>
             </AppointmentDetail>
@@ -572,19 +616,26 @@ const Appointments = () => {
               </DetailIcon>
               <DetailContent>
                 <DetailLabel>Patient</DetailLabel>
-                <DetailValue>{selectedAppointment.patient.name}</DetailValue>
+                <DetailValue>
+                  {selectedAppointment.patient?.name || "Unknown"}
+                </DetailValue>
               </DetailContent>
             </AppointmentDetail>
 
-            <AppointmentDetail>
-              <DetailIcon>
-                <FaHospital />
-              </DetailIcon>
-              <DetailContent>
-                <DetailLabel>Department</DetailLabel>
-                <DetailValue>{selectedAppointment.department.name}</DetailValue>
-              </DetailContent>
-            </AppointmentDetail>
+            {selectedAppointment.department &&
+              selectedAppointment.department.name && (
+                <AppointmentDetail>
+                  <DetailIcon>
+                    <FaHospital />
+                  </DetailIcon>
+                  <DetailContent>
+                    <DetailLabel>Department</DetailLabel>
+                    <DetailValue>
+                      {selectedAppointment.department.name}
+                    </DetailValue>
+                  </DetailContent>
+                </AppointmentDetail>
+              )}
 
             <AppointmentDetail>
               <DetailIcon>
@@ -610,26 +661,32 @@ const Appointments = () => {
               </DetailIcon>
               <DetailContent>
                 <DetailLabel>Reason</DetailLabel>
-                <DetailValue>{selectedAppointment.reason}</DetailValue>
-              </DetailContent>
-            </AppointmentDetail>
-
-            <AppointmentDetail>
-              <DetailIcon>
-                <FaMoneyBillWave />
-              </DetailIcon>
-              <DetailContent>
-                <DetailLabel>Payment Status</DetailLabel>
                 <DetailValue>
-                  <StatusBadge status={selectedAppointment.paymentStatus}>
-                    {selectedAppointment.paymentStatus.charAt(0).toUpperCase() +
-                      selectedAppointment.paymentStatus.slice(1)}
-                  </StatusBadge>
-                  {selectedAppointment.paymentAmount > 0 &&
-                    ` - $${selectedAppointment.paymentAmount}`}
+                  {selectedAppointment.reason || "Not specified"}
                 </DetailValue>
               </DetailContent>
             </AppointmentDetail>
+
+            {selectedAppointment.paymentStatus && (
+              <AppointmentDetail>
+                <DetailIcon>
+                  <FaMoneyBillWave />
+                </DetailIcon>
+                <DetailContent>
+                  <DetailLabel>Payment Status</DetailLabel>
+                  <DetailValue>
+                    <StatusBadge status={selectedAppointment.paymentStatus}>
+                      {selectedAppointment.paymentStatus
+                        .charAt(0)
+                        .toUpperCase() +
+                        selectedAppointment.paymentStatus.slice(1)}
+                    </StatusBadge>
+                    {selectedAppointment.paymentAmount > 0 &&
+                      ` - $${selectedAppointment.paymentAmount}`}
+                  </DetailValue>
+                </DetailContent>
+              </AppointmentDetail>
+            )}
 
             <AppointmentDetail>
               <DetailIcon>

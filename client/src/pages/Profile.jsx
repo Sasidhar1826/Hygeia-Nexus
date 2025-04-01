@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import mockApi from "../services/mockApi";
 import Card from "../components/ui/Card";
 
 const ProfileContainer = styled.div`
@@ -212,7 +213,7 @@ const NoAppointments = styled.p`
 `;
 
 const Profile = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUserProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -230,11 +231,12 @@ const Profile = () => {
         contactNumber: user.contactNumber || "",
       });
 
-      // Fetch user's appointments
+      // Fetch user's appointments using mockApi
       const fetchAppointments = async () => {
         try {
-          const response = await api.get("/appointments");
-          setAppointments(response.data);
+          // Use mockApi for development
+          const response = await mockApi.getAppointments({ patient: user._id });
+          setAppointments(response);
           setLoading(false);
         } catch (error) {
           console.error("Error fetching appointments:", error);
@@ -256,11 +258,8 @@ const Profile = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.put("/auth/me", formData);
-      updateUser({
-        ...user,
-        ...formData,
-      });
+      // Using updateUserProfile from AuthContext which handles the localStorage update
+      await updateUserProfile(formData);
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -405,8 +404,8 @@ const Profile = () => {
                 <AppointmentItem key={appointment._id}>
                   <AppointmentHeader>
                     <AppointmentTitle>
-                      {appointment.doctor?.name || "Doctor"} -{" "}
-                      {appointment.department?.name || "Department"}
+                      {appointment.doctor?.name || "Doctor"} -
+                      {appointment.reason || "Consultation"}
                     </AppointmentTitle>
                     <AppointmentStatus status={appointment.status}>
                       {appointment.status.charAt(0).toUpperCase() +
@@ -416,9 +415,10 @@ const Profile = () => {
                   <AppointmentDetails>
                     <p>Date: {formatDate(appointment.appointmentDate)}</p>
                     <p>
-                      Time: {formatTime(appointment.startTime)} -{" "}
+                      Time: {formatTime(appointment.startTime)} -
                       {formatTime(appointment.endTime)}
                     </p>
+                    <p>Type: {appointment.type || "In-person"}</p>
                     <p>Reason: {appointment.reason}</p>
                   </AppointmentDetails>
                 </AppointmentItem>

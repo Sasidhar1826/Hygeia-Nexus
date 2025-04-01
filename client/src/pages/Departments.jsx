@@ -64,9 +64,9 @@ const DepartmentCard = styled(motion(Card))`
 `;
 
 const DepartmentImage = styled.div`
-  height: 160px;
+  height: 200px;
   background-image: url(${(props) =>
-    props.image || "/images/department-placeholder.jpg"});
+    props.image || "https://via.placeholder.com/300x200?text=Department"});
   background-size: cover;
   background-position: center;
   border-top-left-radius: ${(props) => props.theme.borderRadius.medium};

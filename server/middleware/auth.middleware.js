@@ -14,7 +14,16 @@ const verifyToken = async (req, res, next) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      console.error("JWT Verification error:", jwtError.message);
+      return res.status(401).json({
+        message: "Token is invalid",
+        error: jwtError.message,
+      });
+    }
 
     // Find user by id
     const user = await User.findById(decoded.id).select("-password");
@@ -33,7 +42,9 @@ const verifyToken = async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Auth middleware error:", error.message);
-    return res.status(401).json({ message: "Token is not valid" });
+    return res
+      .status(500)
+      .json({ message: "Server error during authentication" });
   }
 };
 

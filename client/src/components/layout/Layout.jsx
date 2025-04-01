@@ -236,7 +236,7 @@ const Layout = ({ children, title = "Dashboard" }) => {
     {
       icon: <FaVideo />,
       text: "Telemedicine",
-      path: "/dashboard/telemedicine",
+      path: "/dashboard/doctor-telemedicine",
     },
     { icon: <FaPills />, text: "Pharmacy", path: "/dashboard/pharmacy" },
     { icon: <FaFlask />, text: "Lab Reports", path: "/dashboard/lab-reports" },

@@ -11,9 +11,13 @@ import {
   FaTimes,
   FaCheck,
   FaFilter,
+  FaSortAmountDown,
+  FaSortAmountUp,
 } from "react-icons/fa";
-import { mockAuthService } from "../../services/mockApi";
-import Layout from "../../components/layout/Layout";
+import mockApi from "../../services/mockApi";
+import Card from "../../components/ui/Card";
+import Button from "../../components/ui/Button";
+import api from "../../services/api";
 
 // Styled Components
 const PageContainer = styled.div`
@@ -342,39 +346,45 @@ const LoadingContainer = styled.div`
 const ManagePatients = () => {
   const [patients, setPatients] = useState([]);
   const [filteredPatients, setFilteredPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [patientToDelete, setPatientToDelete] = useState(null);
-  const [editingPatient, setEditingPatient] = useState(null);
+  const [genderFilter, setGenderFilter] = useState("");
+  const [sortField, setSortField] = useState("name");
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState("add"); // "add", "edit", "view", "delete"
+  const [currentPatient, setCurrentPatient] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    contactNumber: "",
-    dateOfBirth: "",
     gender: "",
-    bloodGroup: "",
+    dateOfBirth: "",
+    contactNumber: "",
     address: "",
-    aadhaarNumber: "",
-    emergencyContact: "",
+    bloodGroup: "",
+    allergies: "",
+    medicalHistory: "",
   });
 
   useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const data = await mockAuthService.getPatients();
-        setPatients(data);
-        setFilteredPatients(data);
-      } catch (error) {
-        console.error("Error fetching patients:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchPatients();
   }, []);
+
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      // Use mockApi to get patients
+      const response = await mockApi.getPatients();
+      setPatients(response);
+      setFilteredPatients(response);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+      setError("Failed to load patients. Please try again later.");
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (searchTerm.trim() === "") {
@@ -396,30 +406,24 @@ const ManagePatients = () => {
     setSearchTerm(e.target.value);
   };
 
-  const handleDeletePatient = (patient) => {
-    setPatientToDelete(patient);
-    setShowConfirmDialog(true);
-  };
-
-  const confirmDelete = async () => {
+  const handleDelete = async (patientId) => {
     try {
-      await mockAuthService.deletePatient(patientToDelete._id);
-      setPatients((prev) => prev.filter((p) => p._id !== patientToDelete._id));
-      setShowConfirmDialog(false);
-      setPatientToDelete(null);
+      // Use mockApi to delete a patient
+      await mockApi.deletePatient(patientId);
+
+      // Refresh the patients list
+      await fetchPatients();
+      closeModal();
     } catch (error) {
       console.error("Error deleting patient:", error);
+      setError("Failed to delete patient. Please try again.");
     }
-  };
-
-  const cancelDelete = () => {
-    setShowConfirmDialog(false);
-    setPatientToDelete(null);
   };
 
   const handleOpenModal = (patient = null) => {
     if (patient) {
-      setEditingPatient(patient);
+      setCurrentPatient(patient);
+      setModalMode("edit");
       setFormData({
         name: patient.name,
         email: patient.email,
@@ -434,7 +438,7 @@ const ManagePatients = () => {
         emergencyContact: patient.emergencyContact || "",
       });
     } else {
-      setEditingPatient(null);
+      setCurrentPatient(null);
       setFormData({
         name: "",
         email: "",
@@ -447,331 +451,324 @@ const ManagePatients = () => {
         emergencyContact: "",
       });
     }
-    setShowModal(true);
+    setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
-    setShowModal(false);
+    setIsModalOpen(false);
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      if (editingPatient) {
-        // Update existing patient
-        await mockAuthService.updatePatient(editingPatient._id, formData);
-
-        // Update the list
-        setPatients((prev) =>
-          prev.map((pat) =>
-            pat._id === editingPatient._id ? { ...pat, ...formData } : pat
-          )
-        );
-      } else {
-        // Add new patient
-        const newPatient = await mockAuthService.addPatient({
+      if (modalMode === "add") {
+        // Use mockApi to add a patient
+        await mockApi.addPatient({
           ...formData,
           role: "patient",
         });
-
-        // Add to the list
-        setPatients((prev) => [...prev, newPatient]);
+      } else if (modalMode === "edit") {
+        // Use mockApi to update a patient
+        await mockApi.updatePatient(currentPatient._id, formData);
       }
 
-      // Close modal and reset form
+      // Refresh the patients list
+      await fetchPatients();
       handleCloseModal();
     } catch (error) {
       console.error("Error saving patient:", error);
+      setError("Failed to save patient. Please try again.");
     }
   };
 
   return (
-    <Layout title="Manage Patients">
-      <PageContainer>
-        <Header>
-          <Title>
-            <FaUserInjured /> Manage Patients
-          </Title>
-          <ActionButton
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => handleOpenModal()}
+    <PageContainer>
+      <Header>
+        <Title>
+          <FaUserInjured /> Manage Patients
+        </Title>
+        <ActionButton
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => handleOpenModal()}
+        >
+          <FaPlus /> Add New Patient
+        </ActionButton>
+      </Header>
+
+      <SearchContainer>
+        <SearchInput>
+          <FaSearch />
+          <input
+            type="text"
+            placeholder="Search patients by name, email, or Aadhaar number..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+          />
+        </SearchInput>
+        <FilterButton>
+          <FaFilter /> Filter
+        </FilterButton>
+      </SearchContainer>
+
+      {loading ? (
+        <LoadingContainer>
+          <p>Loading patients...</p>
+        </LoadingContainer>
+      ) : filteredPatients.length === 0 ? (
+        <NoResults>
+          <FaUserInjured />
+          <h2>No patients found</h2>
+          <p>Try adjusting your search or add a new patient</p>
+        </NoResults>
+      ) : (
+        <PatientsGrid>
+          {filteredPatients.map((patient) => (
+            <PatientCard
+              key={patient._id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <PatientHeader>
+                <PatientName>{patient.name}</PatientName>
+                <PatientActions>
+                  <IconButton onClick={() => handleOpenModal(patient)}>
+                    <FaEdit />
+                  </IconButton>
+                  <IconButton onClick={() => handleDelete(patient._id)}>
+                    <FaTrash />
+                  </IconButton>
+                  <IconButton>
+                    <FaEye />
+                  </IconButton>
+                </PatientActions>
+              </PatientHeader>
+              <PatientContent>
+                <PatientDetail>
+                  <DetailLabel>Email:</DetailLabel>
+                  <DetailValue>{patient.email}</DetailValue>
+                </PatientDetail>
+                <PatientDetail>
+                  <DetailLabel>Phone:</DetailLabel>
+                  <DetailValue>
+                    {patient.contactNumber || "Not provided"}
+                  </DetailValue>
+                </PatientDetail>
+                <PatientDetail>
+                  <DetailLabel>Gender:</DetailLabel>
+                  <DetailValue>
+                    {patient.gender
+                      ? patient.gender.charAt(0).toUpperCase() +
+                        patient.gender.slice(1)
+                      : "Not provided"}
+                  </DetailValue>
+                </PatientDetail>
+                <PatientDetail>
+                  <DetailLabel>Aadhaar No:</DetailLabel>
+                  <DetailValue>
+                    {patient.aadhaarNumber || "Not provided"}
+                  </DetailValue>
+                </PatientDetail>
+                <PatientDetail>
+                  <DetailLabel>Blood Group:</DetailLabel>
+                  <DetailValue>
+                    {patient.bloodGroup || "Not provided"}
+                  </DetailValue>
+                </PatientDetail>
+              </PatientContent>
+            </PatientCard>
+          ))}
+        </PatientsGrid>
+      )}
+
+      <AnimatePresence>
+        {isModalOpen && (
+          <ModalOverlay
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleCloseModal}
           >
-            <FaPlus /> Add New Patient
-          </ActionButton>
-        </Header>
+            <ModalContent
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ModalHeader>
+                <ModalTitle>
+                  {modalMode === "add" ? "Add New Patient" : "Edit Patient"}
+                </ModalTitle>
+                <CloseButton onClick={handleCloseModal}>
+                  <FaTimes />
+                </CloseButton>
+              </ModalHeader>
 
-        <SearchContainer>
-          <SearchInput>
-            <FaSearch />
-            <input
-              type="text"
-              placeholder="Search patients by name, email, or Aadhaar number..."
-              value={searchTerm}
-              onChange={handleSearchChange}
-            />
-          </SearchInput>
-          <FilterButton>
-            <FaFilter /> Filter
-          </FilterButton>
-        </SearchContainer>
+              <Form onSubmit={handleSubmit}>
+                <FormGroup>
+                  <FormLabel>Full Name</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </FormGroup>
 
-        {loading ? (
-          <LoadingContainer>
-            <p>Loading patients...</p>
-          </LoadingContainer>
-        ) : filteredPatients.length === 0 ? (
-          <NoResults>
-            <FaUserInjured />
-            <h2>No patients found</h2>
-            <p>Try adjusting your search or add a new patient</p>
-          </NoResults>
-        ) : (
-          <PatientsGrid>
-            {filteredPatients.map((patient) => (
-              <PatientCard
-                key={patient._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <PatientHeader>
-                  <PatientName>{patient.name}</PatientName>
-                  <PatientActions>
-                    <IconButton onClick={() => handleOpenModal(patient)}>
-                      <FaEdit />
-                    </IconButton>
-                    <IconButton onClick={() => handleDeletePatient(patient)}>
-                      <FaTrash />
-                    </IconButton>
-                    <IconButton>
-                      <FaEye />
-                    </IconButton>
-                  </PatientActions>
-                </PatientHeader>
-                <PatientContent>
-                  <PatientDetail>
-                    <DetailLabel>Email:</DetailLabel>
-                    <DetailValue>{patient.email}</DetailValue>
-                  </PatientDetail>
-                  <PatientDetail>
-                    <DetailLabel>Phone:</DetailLabel>
-                    <DetailValue>
-                      {patient.contactNumber || "Not provided"}
-                    </DetailValue>
-                  </PatientDetail>
-                  <PatientDetail>
-                    <DetailLabel>Gender:</DetailLabel>
-                    <DetailValue>
-                      {patient.gender
-                        ? patient.gender.charAt(0).toUpperCase() +
-                          patient.gender.slice(1)
-                        : "Not provided"}
-                    </DetailValue>
-                  </PatientDetail>
-                  <PatientDetail>
-                    <DetailLabel>Aadhaar No:</DetailLabel>
-                    <DetailValue>
-                      {patient.aadhaarNumber || "Not provided"}
-                    </DetailValue>
-                  </PatientDetail>
-                  <PatientDetail>
-                    <DetailLabel>Blood Group:</DetailLabel>
-                    <DetailValue>
-                      {patient.bloodGroup || "Not provided"}
-                    </DetailValue>
-                  </PatientDetail>
-                </PatientContent>
-              </PatientCard>
-            ))}
-          </PatientsGrid>
+                <FormGroup>
+                  <FormLabel>Email</FormLabel>
+                  <FormInput
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Phone Number</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="contactNumber"
+                    value={formData.contactNumber}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Date of Birth</FormLabel>
+                  <FormInput
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Gender</FormLabel>
+                  <FormSelect
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </FormSelect>
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Blood Group</FormLabel>
+                  <FormSelect
+                    name="bloodGroup"
+                    value={formData.bloodGroup}
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Select Blood Group</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </FormSelect>
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Address</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Aadhaar Number</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="aadhaarNumber"
+                    value={formData.aadhaarNumber}
+                    onChange={handleInputChange}
+                    maxLength={12}
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Emergency Contact</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="emergencyContact"
+                    value={formData.emergencyContact}
+                    onChange={handleInputChange}
+                  />
+                </FormGroup>
+
+                <SubmitButton
+                  type="submit"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {modalMode === "add" ? "Add Patient" : "Update Patient"}
+                </SubmitButton>
+              </Form>
+            </ModalContent>
+          </ModalOverlay>
         )}
 
-        <AnimatePresence>
-          {showModal && (
-            <ModalOverlay
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={handleCloseModal}
+        {modalMode === "delete" && (
+          <ModalOverlay
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <ConfirmDialog
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
             >
-              <ModalContent
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ModalHeader>
-                  <ModalTitle>
-                    {editingPatient ? "Edit Patient" : "Add New Patient"}
-                  </ModalTitle>
-                  <CloseButton onClick={handleCloseModal}>
-                    <FaTimes />
-                  </CloseButton>
-                </ModalHeader>
-
-                <Form onSubmit={handleSubmit}>
-                  <FormGroup>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Email</FormLabel>
-                    <FormInput
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="contactNumber"
-                      value={formData.contactNumber}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Date of Birth</FormLabel>
-                    <FormInput
-                      type="date"
-                      name="dateOfBirth"
-                      value={formData.dateOfBirth}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Gender</FormLabel>
-                    <FormSelect
-                      name="gender"
-                      value={formData.gender}
-                      onChange={handleInputChange}
-                    >
-                      <option value="">Select Gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </FormSelect>
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Blood Group</FormLabel>
-                    <FormSelect
-                      name="bloodGroup"
-                      value={formData.bloodGroup}
-                      onChange={handleInputChange}
-                    >
-                      <option value="">Select Blood Group</option>
-                      <option value="A+">A+</option>
-                      <option value="A-">A-</option>
-                      <option value="B+">B+</option>
-                      <option value="B-">B-</option>
-                      <option value="AB+">AB+</option>
-                      <option value="AB-">AB-</option>
-                      <option value="O+">O+</option>
-                      <option value="O-">O-</option>
-                    </FormSelect>
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Address</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Aadhaar Number</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="aadhaarNumber"
-                      value={formData.aadhaarNumber}
-                      onChange={handleInputChange}
-                      maxLength={12}
-                    />
-                  </FormGroup>
-
-                  <FormGroup>
-                    <FormLabel>Emergency Contact</FormLabel>
-                    <FormInput
-                      type="text"
-                      name="emergencyContact"
-                      value={formData.emergencyContact}
-                      onChange={handleInputChange}
-                    />
-                  </FormGroup>
-
-                  <SubmitButton
-                    type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    {editingPatient ? "Update Patient" : "Add Patient"}
-                  </SubmitButton>
-                </Form>
-              </ModalContent>
-            </ModalOverlay>
-          )}
-
-          {showConfirmDialog && (
-            <ModalOverlay
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <ConfirmDialog
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-              >
-                <ConfirmMessage>
-                  Are you sure you want to delete patient "
-                  {patientToDelete.name}"? This action cannot be undone.
-                </ConfirmMessage>
-                <ConfirmActions>
-                  <CancelButton
-                    onClick={cancelDelete}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <FaTimes /> Cancel
-                  </CancelButton>
-                  <ConfirmButton
-                    onClick={confirmDelete}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <FaCheck /> Confirm
-                  </ConfirmButton>
-                </ConfirmActions>
-              </ConfirmDialog>
-            </ModalOverlay>
-          )}
-        </AnimatePresence>
-      </PageContainer>
-    </Layout>
+              <ConfirmMessage>
+                Are you sure you want to delete patient "{currentPatient.name}
+                "? This action cannot be undone.
+              </ConfirmMessage>
+              <ConfirmActions>
+                <CancelButton
+                  onClick={handleCloseModal}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <FaTimes /> Cancel
+                </CancelButton>
+                <ConfirmButton
+                  onClick={() => handleDelete(currentPatient._id)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <FaCheck /> Confirm
+                </ConfirmButton>
+              </ConfirmActions>
+            </ConfirmDialog>
+          </ModalOverlay>
+        )}
+      </AnimatePresence>
+    </PageContainer>
   );
 };
 
