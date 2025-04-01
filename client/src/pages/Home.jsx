@@ -13,6 +13,11 @@ import {
   FaEnvelope,
   FaMapMarkerAlt,
   FaCheckCircle,
+  FaHeartbeat,
+  FaNotesMedical,
+  FaPrescriptionBottleAlt,
+  FaStethoscope,
+  FaBriefcaseMedical,
 } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 
@@ -27,12 +32,21 @@ const HeroSection = styled.section`
   min-height: 600px;
   display: flex;
   align-items: center;
-  background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)),
-    url("/images/hospital-hero.jpg");
-  background-size: cover;
-  background-position: center;
+  background-color: ${(props) => props.theme.colors.primary.main};
   color: white;
   padding: ${(props) => props.theme.spacing(3)};
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1;
+  }
 
   @media (max-width: 768px) {
     height: auto;
@@ -41,10 +55,28 @@ const HeroSection = styled.section`
   }
 `;
 
+const HeroBackground = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+
+  & > img,
+  & > svg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
 const HeroContent = styled.div`
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+  z-index: 2;
 `;
 
 const HeroTitle = styled(motion.h1)`
@@ -280,10 +312,16 @@ const AuthorAvatar = styled.div`
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background-image: url(${(props) => props.image});
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
+  background-color: #f3f4f6;
   margin-right: ${(props) => props.theme.spacing(2)};
+
+  & > img,
+  & > svg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 `;
 
 const AuthorInfo = styled.div``;
@@ -347,6 +385,9 @@ const Home = () => {
   return (
     <HomeContainer>
       <HeroSection>
+        <HeroBackground>
+          <img src="/images/hospital-hero.jpg" alt="Hospital" />
+        </HeroBackground>
         <HeroContent>
           <HeroTitle
             initial={{ opacity: 0, y: 20 }}
@@ -397,15 +438,15 @@ const Home = () => {
             transition={{ duration: 0.3 }}
           >
             <FeatureIcon>
-              <FaUserMd />
+              <FaStethoscope />
             </FeatureIcon>
-            <FeatureTitle>Expert Specialists</FeatureTitle>
+            <FeatureTitle>Online Consultations</FeatureTitle>
             <FeatureDescription>
-              Access to a wide range of medical specialists across various
-              departments. Find the right doctor for your specific health needs.
+              Connect with healthcare professionals from the comfort of your
+              home and get expert medical advice.
             </FeatureDescription>
-            <FeatureLink to="/departments">
-              View Departments <FaArrowRight />
+            <FeatureLink to="/consultations">
+              Learn More <FaArrowRight />
             </FeatureLink>
           </FeatureCard>
 
@@ -418,13 +459,13 @@ const Home = () => {
             <FeatureIcon>
               <FaCalendarAlt />
             </FeatureIcon>
-            <FeatureTitle>Easy Appointment Booking</FeatureTitle>
+            <FeatureTitle>Appointment Scheduling</FeatureTitle>
             <FeatureDescription>
-              Book appointments with your preferred doctors at your convenience.
-              Manage and reschedule appointments with just a few clicks.
+              Book appointments with doctors, specialists, or for medical
+              procedures with our easy-to-use scheduling system.
             </FeatureDescription>
             <FeatureLink to="/appointments">
-              Book Appointment <FaArrowRight />
+              Book Now <FaArrowRight />
             </FeatureLink>
           </FeatureCard>
 
@@ -435,15 +476,15 @@ const Home = () => {
             transition={{ duration: 0.3, delay: 0.2 }}
           >
             <FeatureIcon>
-              <FaVideo />
+              <FaHeartbeat />
             </FeatureIcon>
-            <FeatureTitle>Telemedicine Consultations</FeatureTitle>
+            <FeatureTitle>Health Monitoring</FeatureTitle>
             <FeatureDescription>
-              Connect with doctors remotely through video consultations. Get
-              medical advice from the comfort of your home.
+              Track your vital signs, medication schedule, and health metrics
+              for better management of chronic conditions.
             </FeatureDescription>
-            <FeatureLink to="/telemedicine">
-              Learn More <FaArrowRight />
+            <FeatureLink to="/health-monitoring">
+              Start Tracking <FaArrowRight />
             </FeatureLink>
           </FeatureCard>
 
@@ -454,7 +495,7 @@ const Home = () => {
             transition={{ duration: 0.3, delay: 0.3 }}
           >
             <FeatureIcon>
-              <FaFileMedical />
+              <FaNotesMedical />
             </FeatureIcon>
             <FeatureTitle>Digital Medical Records</FeatureTitle>
             <FeatureDescription>
@@ -463,6 +504,44 @@ const Home = () => {
             </FeatureDescription>
             <FeatureLink to="/medical-records">
               View Records <FaArrowRight />
+            </FeatureLink>
+          </FeatureCard>
+
+          <FeatureCard
+            whileHover={{ y: -10 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.4 }}
+          >
+            <FeatureIcon>
+              <FaVideo />
+            </FeatureIcon>
+            <FeatureTitle>Telemedicine</FeatureTitle>
+            <FeatureDescription>
+              Connect with specialists through video consultations for remote
+              diagnosis and follow-up appointments.
+            </FeatureDescription>
+            <FeatureLink to="/telemedicine">
+              Connect Now <FaArrowRight />
+            </FeatureLink>
+          </FeatureCard>
+
+          <FeatureCard
+            whileHover={{ y: -10 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.5 }}
+          >
+            <FeatureIcon>
+              <FaPrescriptionBottleAlt />
+            </FeatureIcon>
+            <FeatureTitle>Medication Management</FeatureTitle>
+            <FeatureDescription>
+              Receive reminders for medication, refill prescriptions online, and
+              track your medication history.
+            </FeatureDescription>
+            <FeatureLink to="/medications">
+              Manage Medications <FaArrowRight />
             </FeatureLink>
           </FeatureCard>
         </FeaturesGrid>
@@ -503,7 +582,9 @@ const Home = () => {
               consultation all within the same day!
             </TestimonialText>
             <TestimonialAuthor>
-              <AuthorAvatar image="/images/patient1.jpg" />
+              <AuthorAvatar>
+                <img src="/images/patient1.jpg" alt="Sarah Johnson" />
+              </AuthorAvatar>
               <AuthorInfo>
                 <AuthorName>Sarah Johnson</AuthorName>
                 <AuthorRole>Patient</AuthorRole>
@@ -522,7 +603,9 @@ const Home = () => {
               track my health progress over time.
             </TestimonialText>
             <TestimonialAuthor>
-              <AuthorAvatar image="/images/patient2.jpg" />
+              <AuthorAvatar>
+                <img src="/images/patient2.jpg" alt="Michael Rodriguez" />
+              </AuthorAvatar>
               <AuthorInfo>
                 <AuthorName>Michael Rodriguez</AuthorName>
                 <AuthorRole>Patient</AuthorRole>
@@ -541,7 +624,9 @@ const Home = () => {
               without having to travel to the hospital.
             </TestimonialText>
             <TestimonialAuthor>
-              <AuthorAvatar image="/images/patient3.jpg" />
+              <AuthorAvatar>
+                <img src="/images/patient3.jpg" alt="Emily Chen" />
+              </AuthorAvatar>
               <AuthorInfo>
                 <AuthorName>Emily Chen</AuthorName>
                 <AuthorRole>Patient</AuthorRole>

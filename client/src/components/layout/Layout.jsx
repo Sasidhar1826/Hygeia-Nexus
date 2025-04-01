@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import styled from "styled-components";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   FaHome,
   FaUserInjured,
@@ -16,6 +16,11 @@ import {
   FaBars,
   FaTimes,
   FaUser,
+  FaHospital,
+  FaUserMd,
+  FaFlask,
+  FaChartLine,
+  FaBuilding,
 } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
 
@@ -107,6 +112,16 @@ const MenuLink = styled.a`
   }
 `;
 
+const MenuHeading = styled.div`
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.6);
+  padding: ${(props) => props.theme.spacing(2)}
+    ${(props) => props.theme.spacing(2)} ${(props) => props.theme.spacing(1)};
+  display: ${(props) => (props.isCollapsed ? "none" : "block")};
+`;
+
 const MenuText = styled.span`
   white-space: nowrap;
   opacity: ${(props) => (props.isCollapsed ? "0" : "1")};
@@ -152,8 +167,19 @@ const UserAvatar = styled.div`
   margin-right: ${(props) => props.theme.spacing(1)};
 `;
 
+const UserDetails = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
 const UserName = styled.span`
   font-weight: 500;
+`;
+
+const UserRole = styled.span`
+  font-size: 0.75rem;
+  color: ${(props) => props.theme.colors.text.secondary};
+  text-transform: capitalize;
 `;
 
 const Content = styled.main`
@@ -162,25 +188,107 @@ const Content = styled.main`
 
 const Layout = ({ children, title = "Dashboard" }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isDoctor, isPatient, isLabTechnician } =
+    useAuth();
   const navigate = useNavigate();
 
   const sidebarWidth = isCollapsed ? "80px" : "250px";
 
-  const menuItems = [
-    { icon: <FaHome />, text: "Dashboard", path: "/" },
-    { icon: <FaUserInjured />, text: "Patients", path: "/patients" },
-    { icon: <FaCalendarAlt />, text: "Appointments", path: "/appointments" },
+  // Common menu items for all users
+  const commonMenuItems = [
+    { icon: <FaHome />, text: "Dashboard", path: "/dashboard" },
+    { icon: <FaUser />, text: "Profile", path: "/dashboard/profile" },
+  ];
+
+  // Patient specific menu items
+  const patientMenuItems = [
+    { icon: <FaUserMd />, text: "Doctors", path: "/dashboard/doctors" },
+    {
+      icon: <FaCalendarAlt />,
+      text: "Appointments",
+      path: "/dashboard/appointments",
+    },
     {
       icon: <FaFileMedical />,
       text: "Medical Records",
-      path: "/medical-records",
+      path: "/dashboard/medical-records",
     },
-    { icon: <FaRobot />, text: "AI Diagnostics", path: "/ai-diagnostics" },
-    { icon: <FaVideo />, text: "Telemedicine", path: "/telemedicine" },
-    { icon: <FaPills />, text: "Pharmacy", path: "/pharmacy" },
-    { icon: <FaFileInvoiceDollar />, text: "Billing", path: "/billing" },
-    { icon: <FaCog />, text: "Admin", path: "/admin" },
+    {
+      icon: <FaRobot />,
+      text: "AI Diagnostics",
+      path: "/dashboard/ai-diagnostics",
+    },
+  ];
+
+  // Doctor specific menu items
+  const doctorMenuItems = [
+    { icon: <FaUserInjured />, text: "Patients", path: "/dashboard/patients" },
+    {
+      icon: <FaCalendarAlt />,
+      text: "Appointments",
+      path: "/dashboard/appointments",
+    },
+    {
+      icon: <FaFileMedical />,
+      text: "Medical Records",
+      path: "/dashboard/medical-records",
+    },
+    {
+      icon: <FaVideo />,
+      text: "Telemedicine",
+      path: "/dashboard/telemedicine",
+    },
+    { icon: <FaPills />, text: "Pharmacy", path: "/dashboard/pharmacy" },
+    { icon: <FaFlask />, text: "Lab Reports", path: "/dashboard/lab-reports" },
+  ];
+
+  // Lab technician specific menu items
+  const labTechMenuItems = [
+    { icon: <FaFlask />, text: "Lab Reports", path: "/dashboard/lab-reports" },
+    {
+      icon: <FaFlask />,
+      text: "Upload Results",
+      path: "/dashboard/upload-lab-results",
+    },
+    {
+      icon: <FaFlask />,
+      text: "Lab Orders",
+      path: "/dashboard/view-lab-orders",
+    },
+  ];
+
+  // Admin specific menu items
+  const adminMenuItems = [
+    {
+      icon: <FaChartLine />,
+      text: "Admin Dashboard",
+      path: "/dashboard/admin/dashboard",
+    },
+    {
+      icon: <FaUserMd />,
+      text: "Manage Doctors",
+      path: "/dashboard/admin/doctors",
+    },
+    {
+      icon: <FaUserInjured />,
+      text: "Manage Patients",
+      path: "/dashboard/admin/patients",
+    },
+    {
+      icon: <FaFlask />,
+      text: "Manage Lab Techs",
+      path: "/dashboard/admin/lab-technicians",
+    },
+    {
+      icon: <FaCalendarAlt />,
+      text: "Manage Appointments",
+      path: "/dashboard/admin/appointments",
+    },
+    {
+      icon: <FaBuilding />,
+      text: "Manage Departments",
+      path: "/dashboard/admin/departments",
+    },
   ];
 
   const handleLogout = () => {
@@ -208,8 +316,9 @@ const Layout = ({ children, title = "Dashboard" }) => {
         </SidebarHeader>
 
         <SidebarMenu>
-          {menuItems.map((item, index) => (
-            <MenuItem key={index}>
+          {/* Common menu items for all users */}
+          {commonMenuItems.map((item, index) => (
+            <MenuItem key={`common-${index}`}>
               <MenuLink
                 onClick={() => navigate(item.path)}
                 className={
@@ -223,6 +332,103 @@ const Layout = ({ children, title = "Dashboard" }) => {
             </MenuItem>
           ))}
 
+          {/* Patient specific menu items */}
+          {isPatient() && (
+            <>
+              {!isCollapsed && (
+                <MenuHeading isCollapsed={isCollapsed}>
+                  Patient Menu
+                </MenuHeading>
+              )}
+              {patientMenuItems.map((item, index) => (
+                <MenuItem key={`patient-${index}`}>
+                  <MenuLink
+                    onClick={() => navigate(item.path)}
+                    className={
+                      window.location.pathname === item.path ? "active" : ""
+                    }
+                    isCollapsed={isCollapsed}
+                  >
+                    {item.icon}
+                    <MenuText isCollapsed={isCollapsed}>{item.text}</MenuText>
+                  </MenuLink>
+                </MenuItem>
+              ))}
+            </>
+          )}
+
+          {/* Doctor specific menu items */}
+          {isDoctor() && (
+            <>
+              {!isCollapsed && (
+                <MenuHeading isCollapsed={isCollapsed}>Doctor Menu</MenuHeading>
+              )}
+              {doctorMenuItems.map((item, index) => (
+                <MenuItem key={`doctor-${index}`}>
+                  <MenuLink
+                    onClick={() => navigate(item.path)}
+                    className={
+                      window.location.pathname === item.path ? "active" : ""
+                    }
+                    isCollapsed={isCollapsed}
+                  >
+                    {item.icon}
+                    <MenuText isCollapsed={isCollapsed}>{item.text}</MenuText>
+                  </MenuLink>
+                </MenuItem>
+              ))}
+            </>
+          )}
+
+          {/* Lab technician specific menu items */}
+          {isLabTechnician() && (
+            <>
+              {!isCollapsed && (
+                <MenuHeading isCollapsed={isCollapsed}>
+                  Lab Technician Menu
+                </MenuHeading>
+              )}
+              {labTechMenuItems.map((item, index) => (
+                <MenuItem key={`lab-${index}`}>
+                  <MenuLink
+                    onClick={() => navigate(item.path)}
+                    className={
+                      window.location.pathname === item.path ? "active" : ""
+                    }
+                    isCollapsed={isCollapsed}
+                  >
+                    {item.icon}
+                    <MenuText isCollapsed={isCollapsed}>{item.text}</MenuText>
+                  </MenuLink>
+                </MenuItem>
+              ))}
+            </>
+          )}
+
+          {/* Admin specific menu items */}
+          {isAdmin() && (
+            <>
+              {!isCollapsed && (
+                <MenuHeading isCollapsed={isCollapsed}>Admin Menu</MenuHeading>
+              )}
+              {adminMenuItems.map((item, index) => (
+                <MenuItem key={`admin-${index}`}>
+                  <MenuLink
+                    onClick={() => navigate(item.path)}
+                    className={
+                      window.location.pathname === item.path ? "active" : ""
+                    }
+                    isCollapsed={isCollapsed}
+                  >
+                    {item.icon}
+                    <MenuText isCollapsed={isCollapsed}>{item.text}</MenuText>
+                  </MenuLink>
+                </MenuItem>
+              ))}
+            </>
+          )}
+
+          {/* Logout option for all users */}
           <MenuItem>
             <MenuLink onClick={handleLogout} isCollapsed={isCollapsed}>
               <FaSignOutAlt />
@@ -239,7 +445,10 @@ const Layout = ({ children, title = "Dashboard" }) => {
             <UserAvatar>
               <FaUser />
             </UserAvatar>
-            <UserName>{user?.name || "User"}</UserName>
+            <UserDetails>
+              <UserName>{user?.name || "User"}</UserName>
+              <UserRole>{user?.role || "user"}</UserRole>
+            </UserDetails>
           </UserInfo>
         </Header>
 

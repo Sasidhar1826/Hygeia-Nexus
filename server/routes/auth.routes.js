@@ -10,6 +10,7 @@ const { verifyToken } = require("../middleware/auth.middleware");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
+const Patient = require("../models/patient.model");
 
 // Auth routes
 router.post("/register", register);
@@ -59,6 +60,173 @@ router.post("/signup", async (req, res) => {
     });
   } catch (error) {
     console.error("Signup error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Patient Registration route
+router.post("/patient-register", async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      gender,
+      dateOfBirth,
+      phoneNumber,
+      aadhaarNumber,
+      bloodGroup,
+      allergies,
+      existingConditions,
+      address,
+    } = req.body;
+
+    console.log("Patient registration data received:", {
+      email,
+      firstName,
+      lastName,
+      gender,
+      dateOfBirth,
+      phoneNumber,
+      aadhaarNumber,
+      bloodGroup,
+      allergies: allergies ? allergies.split(",").map((a) => a.trim()) : [],
+      existingConditions,
+      address,
+    });
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    // Create new user with role patient
+    const user = new User({
+      name: `${firstName} ${lastName}`,
+      email,
+      password: hashedPassword,
+      role: "patient",
+      gender,
+      dateOfBirth,
+      phoneNumber: phoneNumber,
+      address: {
+        street: address?.street || "",
+        city: address?.city || "",
+        state: address?.state || "",
+        zipCode: address?.pincode || "",
+        country: "India",
+      },
+    });
+
+    // Save user to database
+    const savedUser = await user.save();
+
+    // Create patient record with additional fields
+    const patient = new Patient({
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender,
+      contactNumber: phoneNumber,
+      email,
+      address: {
+        street: address?.street || "",
+        city: address?.city || "",
+        state: address?.state || "",
+        zipCode: address?.pincode || "",
+        country: "India",
+      },
+      bloodGroup,
+      aadhaarNumber,
+      allergies: allergies ? allergies.split(",").map((a) => a.trim()) : [],
+      medicalHistory: existingConditions
+        ? [
+            {
+              condition: existingConditions,
+              diagnosedDate: new Date(),
+              notes: "Self-reported during registration",
+            },
+          ]
+        : [],
+    });
+
+    // Save patient to database
+    await patient.save();
+
+    console.log("Patient registered successfully:", {
+      userId: savedUser._id,
+      patientId: patient._id,
+      name: savedUser.name,
+      email: savedUser.email,
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: savedUser._id, role: savedUser.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Return user data and token
+    res.status(201).json({
+      token,
+      user: {
+        _id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        role: savedUser.role,
+      },
+    });
+  } catch (error) {
+    console.error("Patient registration error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Test route to list all patients
+router.get("/patients-list", async (req, res) => {
+  try {
+    // Get all patients with their details
+    const patients = await Patient.find().select("-__v");
+
+    // Return patient data
+    res.json({
+      count: patients.length,
+      patients: patients,
+    });
+  } catch (error) {
+    console.error("Error fetching patients:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Test route to list users by role
+router.get("/users-by-role/:role", async (req, res) => {
+  try {
+    const { role } = req.params;
+
+    // Validate role parameter
+    const validRoles = ["patient", "doctor", "admin", "labtechnician"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ message: "Invalid role specified" });
+    }
+
+    // Get all users with the specified role
+    const users = await User.find({ role }).select("-password -__v");
+
+    // Return user data
+    res.json({
+      count: users.length,
+      users: users,
+    });
+  } catch (error) {
+    console.error(`Error fetching ${req.params.role} users:`, error);
     res.status(500).json({ message: "Server error" });
   }
 });

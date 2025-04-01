@@ -37,24 +37,37 @@ api.interceptors.response.use(
 );
 
 // Auth services
-export const authService = {
-  login: async (email, password) => {
-    const response = await api.post("/auth/login", { email, password });
-    return response.data;
-  },
-  signup: async (userData) => {
-    const response = await api.post("/auth/register", userData);
-    return response.data;
-  },
-  logout: () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-  },
-  getCurrentUser: () => {
-    const user = localStorage.getItem("user");
-    return user ? JSON.parse(user) : null;
-  },
+const login = async (email, password, role = "") => {
+  const response = await api.post("/auth/login", { email, password, role });
+  return response.data;
 };
+
+const signup = async (userData) => {
+  // Use patient-specific registration endpoint for patients
+  if (userData.role === "patient") {
+    const response = await api.post("/auth/patient-register", userData);
+    return response.data;
+  }
+  // Use regular signup for other user types
+  const response = await api.post("/auth/register", userData);
+  return response.data;
+};
+
+const logout = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+};
+
+const getCurrentUser = () => {
+  const user = localStorage.getItem("user");
+  return user ? JSON.parse(user) : null;
+};
+
+// Add auth methods directly to api object
+api.login = login;
+api.signup = signup;
+api.logout = logout;
+api.getCurrentUser = getCurrentUser;
 
 // Patient services
 export const patientService = {
@@ -72,6 +85,10 @@ export const appointmentService = {
   create: (data) => api.post("/appointments", data),
   update: (id, data) => api.put(`/appointments/${id}`, data),
   delete: (id) => api.delete(`/appointments/${id}`),
+  updateStatus: (id, status) =>
+    api.put(`/appointments/${id}/status`, { status }),
+  updatePaymentStatus: (id, paymentStatus) =>
+    api.put(`/appointments/${id}/payment`, { paymentStatus }),
 };
 
 // Medical record services
@@ -82,6 +99,15 @@ export const medicalRecordService = {
   create: (data) => api.post("/medical-records", data),
   update: (id, data) => api.put(`/medical-records/${id}`, data),
   delete: (id) => api.delete(`/medical-records/${id}`),
+  uploadAttachment: (recordId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post(`/medical-records/${recordId}/attachments`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 };
 
 // Pharmacy services
@@ -97,6 +123,9 @@ export const pharmacyService = {
   updatePrescription: (id, data) =>
     api.put(`/pharmacy/prescriptions/${id}`, data),
   deletePrescription: (id) => api.delete(`/pharmacy/prescriptions/${id}`),
+  updateMedicationStock: (id, stock) =>
+    api.put(`/pharmacy/medications/${id}/stock`, { stock }),
+  getLowStockMedications: () => api.get(`/pharmacy/low-stock`),
 };
 
 // Billing services
@@ -108,6 +137,39 @@ export const billingService = {
   deleteInvoice: (id) => api.delete(`/billing/invoices/${id}`),
   processPayment: (invoiceId, paymentData) =>
     api.post(`/billing/invoices/${invoiceId}/payment`, paymentData),
+  getPatientBillingHistory: (patientId) =>
+    api.get(`/billing/patient/${patientId}`),
+};
+
+// Department services
+export const departmentService = {
+  getAll: () => api.get("/departments"),
+  getById: (id) => api.get(`/departments/${id}`),
+  create: (data) => api.post("/departments", data),
+  update: (id, data) => api.put(`/departments/${id}`, data),
+  delete: (id) => api.delete(`/departments/${id}`),
+};
+
+// Doctor services
+export const doctorService = {
+  getAll: (params) => api.get("/doctors", { params }),
+  getById: (id) => api.get(`/doctors/${id}`),
+  create: (data) => api.post("/doctors", data),
+  update: (id, data) => api.put(`/doctors/${id}`, data),
+  delete: (id) => api.delete(`/doctors/${id}`),
+  getByDepartment: (departmentId) =>
+    api.get(`/doctors/department/${departmentId}`),
+};
+
+// Lab services
+export const labService = {
+  getReports: (params) => api.get("/lab-reports", { params }),
+  getReportById: (id) => api.get(`/lab-reports/${id}`),
+  createReport: (data) => api.post("/lab-reports", data),
+  updateReport: (id, data) => api.put(`/lab-reports/${id}`, data),
+  deleteReport: (id) => api.delete(`/lab-reports/${id}`),
+  getPatientReports: (patientId) =>
+    api.get(`/lab-reports/patient/${patientId}`),
 };
 
 export default api;

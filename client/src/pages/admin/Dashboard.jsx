@@ -8,10 +8,15 @@ import {
   FaFileInvoiceDollar,
   FaChartLine,
   FaExclamationTriangle,
+  FaFlask,
+  FaHospital,
+  FaPlus,
+  FaArrowRight,
 } from "react-icons/fa";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import Card from "../../components/ui/Card";
 import api from "../../services/api";
+import { Link } from "react-router-dom";
 
 const DashboardContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -29,6 +34,84 @@ const StatsGrid = styled.div`
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
+  }
+`;
+
+// Admin action cards
+const ActionGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: ${(props) => props.theme.spacing(3)};
+  margin-bottom: ${(props) => props.theme.spacing(4)};
+
+  @media (max-width: 1200px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ActionCard = styled(motion.div)`
+  background-color: ${(props) => props.theme.colors.background.paper};
+  border-radius: ${(props) => props.theme.borderRadius.medium};
+  padding: ${(props) => props.theme.spacing(3)};
+  box-shadow: ${(props) => props.theme.shadows.small};
+  transition: all 0.3s ease;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: ${(props) => props.theme.shadows.medium};
+  }
+`;
+
+const ActionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: ${(props) => props.theme.spacing(2)};
+`;
+
+const ActionIcon = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: ${(props) => props.color}20;
+  color: ${(props) => props.color};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  margin-right: ${(props) => props.theme.spacing(2)};
+`;
+
+const ActionTitle = styled.h3`
+  font-size: 1.1rem;
+  color: ${(props) => props.theme.colors.text.primary};
+  margin: 0;
+`;
+
+const ActionDescription = styled.p`
+  font-size: 0.9rem;
+  color: ${(props) => props.theme.colors.text.secondary};
+  margin-bottom: ${(props) => props.theme.spacing(2)};
+`;
+
+const ActionLink = styled(Link)`
+  display: flex;
+  align-items: center;
+  color: ${(props) => props.theme.colors.primary.main};
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+
+  svg {
+    margin-left: ${(props) => props.theme.spacing(0.5)};
+    transition: transform 0.2s ease;
+  }
+
+  &:hover svg {
+    transform: translateX(3px);
   }
 `;
 
@@ -153,6 +236,7 @@ const Dashboard = () => {
     patients: 0,
     appointments: 0,
     revenue: 0,
+    labTechnicians: 0,
   });
 
   const [loading, setLoading] = useState(true);
@@ -171,6 +255,7 @@ const Dashboard = () => {
           patients: 1458,
           appointments: 385,
           revenue: 28750,
+          labTechnicians: 12,
         });
 
         setLoading(false);
@@ -253,6 +338,8 @@ const Dashboard = () => {
 
   return (
     <DashboardContainer>
+      <SectionTitle>Dashboard Overview</SectionTitle>
+
       <StatsGrid>
         <StatCard
           initial={{ opacity: 0, y: 20 }}
@@ -302,14 +389,118 @@ const Dashboard = () => {
           transition={{ duration: 0.3, delay: 0.3 }}
         >
           <StatIcon color="#8B5CF6">
-            <FaFileInvoiceDollar />
+            <FaFlask />
           </StatIcon>
           <StatContent>
-            <StatValue>${stats.revenue.toLocaleString()}</StatValue>
-            <StatLabel>Revenue</StatLabel>
+            <StatValue>{stats.labTechnicians}</StatValue>
+            <StatLabel>Lab Technicians</StatLabel>
           </StatContent>
         </StatCard>
       </StatsGrid>
+
+      <SectionTitle>Admin Actions</SectionTitle>
+
+      <ActionGrid>
+        <ActionCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <ActionHeader>
+            <ActionIcon color="#4A90E2">
+              <FaUserMd />
+            </ActionIcon>
+            <ActionTitle>Manage Doctors</ActionTitle>
+          </ActionHeader>
+          <ActionDescription>
+            Add, edit, or remove doctors. Update doctor information and manage
+            their departments.
+          </ActionDescription>
+          <ActionLink to="/dashboard/admin/doctors">
+            Manage Doctors <FaArrowRight size={12} />
+          </ActionLink>
+        </ActionCard>
+
+        <ActionCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+        >
+          <ActionHeader>
+            <ActionIcon color="#10B981">
+              <FaUserInjured />
+            </ActionIcon>
+            <ActionTitle>Manage Patients</ActionTitle>
+          </ActionHeader>
+          <ActionDescription>
+            View all patients, add new patients, and update existing patient
+            records.
+          </ActionDescription>
+          <ActionLink to="/dashboard/admin/patients">
+            Manage Patients <FaArrowRight size={12} />
+          </ActionLink>
+        </ActionCard>
+
+        <ActionCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <ActionHeader>
+            <ActionIcon color="#8B5CF6">
+              <FaFlask />
+            </ActionIcon>
+            <ActionTitle>Manage Lab Technicians</ActionTitle>
+          </ActionHeader>
+          <ActionDescription>
+            Add, edit, or remove lab technicians. Assign specializations and
+            manage their information.
+          </ActionDescription>
+          <ActionLink to="/dashboard/admin/lab-technicians">
+            Manage Lab Technicians <FaArrowRight size={12} />
+          </ActionLink>
+        </ActionCard>
+
+        <ActionCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+        >
+          <ActionHeader>
+            <ActionIcon color="#F59E0B">
+              <FaCalendarAlt />
+            </ActionIcon>
+            <ActionTitle>Manage Appointments</ActionTitle>
+          </ActionHeader>
+          <ActionDescription>
+            View, schedule, reschedule, or cancel appointments. Manage
+            appointment status.
+          </ActionDescription>
+          <ActionLink to="/dashboard/admin/appointments">
+            Manage Appointments <FaArrowRight size={12} />
+          </ActionLink>
+        </ActionCard>
+
+        <ActionCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.4 }}
+        >
+          <ActionHeader>
+            <ActionIcon color="#EF4444">
+              <FaHospital />
+            </ActionIcon>
+            <ActionTitle>Manage Departments</ActionTitle>
+          </ActionHeader>
+          <ActionDescription>
+            Create and manage hospital departments. Assign doctors to
+            departments.
+          </ActionDescription>
+          <ActionLink to="/dashboard/admin/departments">
+            Manage Departments <FaArrowRight size={12} />
+          </ActionLink>
+        </ActionCard>
+      </ActionGrid>
 
       <ChartsGrid>
         <ChartCard>

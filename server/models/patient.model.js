@@ -37,6 +37,16 @@ const patientSchema = new mongoose.Schema(
       zipCode: String,
       country: String,
     },
+    aadhaarNumber: {
+      type: String,
+      trim: true,
+      validate: {
+        validator: function (v) {
+          return v === "" || /^\d{12}$/.test(v);
+        },
+        message: (props) => `${props.value} is not a valid Aadhaar number!`,
+      },
+    },
     bloodGroup: {
       type: String,
       enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],

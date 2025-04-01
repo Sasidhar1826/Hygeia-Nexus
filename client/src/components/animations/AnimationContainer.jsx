@@ -1,63 +1,66 @@
 import React from "react";
-import { Player } from "@lottiefiles/react-lottie-player";
 import styled from "styled-components";
+import { Player } from "@lottiefiles/react-lottie-player";
 
-// Import all animation JSON files
-import loadingAnimation from "../../assets/loading-animation.json";
-import modalAnimation from "../../assets/modal-animation.json";
-import emptyStateAnimation from "../../assets/empty-state.json";
-
-const AnimationWrapper = styled.div`
-  width: ${(props) => props.width || "100%"};
-  height: ${(props) => props.height || "200px"};
+const Container = styled.div`
   display: flex;
-  justify-content: center;
   align-items: center;
-  margin: ${(props) => props.margin || "0"};
+  justify-content: center;
+  height: ${({ height }) => height || "200px"};
+  width: ${({ width }) => width || "100%"};
+  margin: ${({ margin }) => margin || "0"};
 `;
 
-const animations = {
-  loading: loadingAnimation,
-  modal: modalAnimation,
-  emptyState: emptyStateAnimation,
-};
-
 /**
- * A component for displaying various animations in the application
- *
- * @param {Object} props
- * @param {string} props.type - The type of animation to display ('loading', 'modal', 'emptyState')
- * @param {string} props.width - The width of the animation container
- * @param {string} props.height - The height of the animation container
- * @param {string} props.margin - The margin around the animation container
- * @param {Object} props.style - Additional styles to apply to the animation
- * @param {boolean} props.loop - Whether the animation should loop (default: true)
- * @param {boolean} props.autoplay - Whether the animation should play automatically (default: true)
- * @returns {React.ReactElement}
+ * AnimationContainer component for displaying animations
+ * @param {string} type - Type of animation: "loading", "emptyState", "success", "error", "modal"
+ * @param {string} height - Height of the container
+ * @param {string} width - Width of the container
+ * @param {string} margin - Margin of the container
+ * @param {function} onComplete - Callback function when animation completes
+ * @param {Object} playerProps - Additional props for the Lottie Player
  */
 const AnimationContainer = ({
   type = "loading",
-  width,
   height,
+  width,
   margin,
-  style = {},
-  loop = true,
-  autoplay = true,
+  onComplete,
+  playerProps = {},
 }) => {
-  if (!animations[type]) {
-    console.warn(`Animation type '${type}' not found`);
-    return null;
-  }
+  const getAnimationSrc = () => {
+    switch (type) {
+      case "loading":
+        return "/loading-animation.json";
+      case "emptyState":
+        return "/empty-state.json";
+      case "success":
+        return "/success-animation.json";
+      case "error":
+        return "/error-animation.json";
+      case "modal":
+        return "/modal-animation.json";
+      default:
+        return "/loading-animation.json";
+    }
+  };
+
+  const getLoop = () => {
+    // Loading animations should loop, others typically play once
+    return ["loading"].includes(type);
+  };
 
   return (
-    <AnimationWrapper width={width} height={height} margin={margin}>
+    <Container height={height} width={width} margin={margin}>
       <Player
-        src={animations[type]}
-        loop={loop}
-        autoplay={autoplay}
-        style={{ width: "100%", height: "100%", ...style }}
+        src={getAnimationSrc()}
+        loop={getLoop()}
+        autoplay
+        style={{ height: "100%", width: "100%" }}
+        onComplete={onComplete}
+        {...playerProps}
       />
-    </AnimationWrapper>
+    </Container>
   );
 };
 

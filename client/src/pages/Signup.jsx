@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import styled from "styled-components";
 import { motion } from "framer-motion";
@@ -8,6 +8,10 @@ import {
   FaEnvelope,
   FaUserMd,
   FaHospital,
+  FaFlask,
+  FaHeadset,
+  FaUserInjured,
+  FaKey,
 } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 
@@ -15,6 +19,18 @@ const SignupContainer = styled.div`
   display: flex;
   height: 100vh;
   background-color: ${(props) => props.theme.colors.background.default};
+`;
+
+const SignupImage = styled.div`
+  flex: 1;
+  background-image: url("/login-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  display: none;
+
+  @media (min-width: 768px) {
+    display: block;
+  }
 `;
 
 const SignupFormContainer = styled.div`
@@ -117,7 +133,27 @@ const ErrorMessage = styled.div`
   font-size: 0.9rem;
 `;
 
-const LoginLink = styled.div`
+const InfoMessage = styled.div`
+  background-color: ${(props) => props.theme.colors.primary.main}20;
+  border-left: 4px solid ${(props) => props.theme.colors.primary.main};
+  color: ${(props) => props.theme.colors.text.primary};
+  padding: ${(props) => props.theme.spacing(2)};
+  margin-bottom: ${(props) => props.theme.spacing(3)};
+  border-radius: ${(props) => props.theme.borderRadius.small};
+  font-size: 0.9rem;
+
+  a {
+    color: ${(props) => props.theme.colors.primary.main};
+    font-weight: 600;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`;
+
+const LinkContainer = styled.div`
   text-align: center;
   margin-top: ${(props) => props.theme.spacing(3)};
   font-size: 0.9rem;
@@ -133,6 +169,46 @@ const LoginLink = styled.div`
   }
 `;
 
+const Divider = styled.div`
+  display: flex;
+  align-items: center;
+  margin: ${(props) => props.theme.spacing(3)} 0;
+
+  &:before,
+  &:after {
+    content: "";
+    flex: 1;
+    border-bottom: 1px solid ${(props) => props.theme.colors.border};
+  }
+
+  span {
+    padding: 0 ${(props) => props.theme.spacing(1)};
+    color: ${(props) => props.theme.colors.text.secondary};
+    font-size: 0.9rem;
+  }
+`;
+
+const PatientButton = styled(motion.button)`
+  width: 100%;
+  padding: ${(props) => props.theme.spacing(1.5)};
+  background-color: ${(props) => props.theme.colors.background.paper};
+  color: ${(props) => props.theme.colors.primary.main};
+  border: 1px solid ${(props) => props.theme.colors.primary.main};
+  border-radius: ${(props) => props.theme.borderRadius.medium};
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${(props) => props.theme.spacing(1)};
+  margin-bottom: ${(props) => props.theme.spacing(3)};
+
+  &:hover {
+    background-color: ${(props) => props.theme.colors.primary.main}20;
+  }
+`;
+
 const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -141,9 +217,16 @@ const Signup = () => {
   const [role, setRole] = useState("doctor");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [adminKey, setAdminKey] = useState("");
+  const [needsAdminKey, setNeedsAdminKey] = useState(false);
 
   const { signup } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if admin key is needed based on role
+    setNeedsAdminKey(role === "admin");
+  }, [role]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -169,19 +252,33 @@ const Signup = () => {
       return;
     }
 
-    const result = await signup({ name, email, password, role });
-
-    if (result.success) {
-      navigate("/");
-    } else {
-      setError(result.message);
+    // Validate admin key if trying to register as admin
+    if (role === "admin" && adminKey !== "admin123") {
+      // This is just a placeholder, in a real app this would be verified on the server
+      setError("Invalid admin key");
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    try {
+      await signup({ name, email, password, role });
+      navigate("/dashboard");
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Registration failed. Please try again."
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const redirectToPatientSignup = () => {
+    navigate("/patient-signup");
   };
 
   return (
     <SignupContainer>
+      <SignupImage />
       <SignupFormContainer>
         <SignupForm
           initial={{ opacity: 0, y: 20 }}
@@ -191,8 +288,26 @@ const Signup = () => {
         >
           <FormTitle>
             <FaHospital style={{ marginRight: "10px" }} />
-            Create Account
+            Staff Registration
           </FormTitle>
+
+          <InfoMessage>
+            This registration is for hospital staff only. If you are a patient,
+            please <Link to="/patient-signup">register here</Link>.
+          </InfoMessage>
+
+          <PatientButton
+            type="button"
+            onClick={redirectToPatientSignup}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <FaUserInjured /> Register as a Patient
+          </PatientButton>
+
+          <Divider>
+            <span>STAFF REGISTRATION</span>
+          </Divider>
 
           <FormGroup>
             <InputContainer>
@@ -255,13 +370,28 @@ const Signup = () => {
                 required
               >
                 <option value="doctor">Doctor</option>
+                <option value="labtechnician">Lab Technician</option>
                 <option value="nurse">Nurse</option>
                 <option value="receptionist">Receptionist</option>
-                <option value="pharmacist">Pharmacist</option>
                 <option value="admin">Administrator</option>
               </select>
             </SelectContainer>
           </FormGroup>
+
+          {needsAdminKey && (
+            <FormGroup>
+              <InputContainer>
+                <FaKey />
+                <input
+                  type="password"
+                  placeholder="Admin Registration Key"
+                  value={adminKey}
+                  onChange={(e) => setAdminKey(e.target.value)}
+                  required
+                />
+              </InputContainer>
+            </FormGroup>
+          )}
 
           {error && <ErrorMessage>{error}</ErrorMessage>}
 
@@ -270,12 +400,12 @@ const Signup = () => {
             disabled={isLoading}
             whileTap={{ scale: 0.95 }}
           >
-            {isLoading ? "Creating Account..." : "Sign Up"}
+            {isLoading ? "Creating Account..." : "Register as Staff"}
           </SubmitButton>
 
-          <LoginLink>
+          <LinkContainer>
             Already have an account? <Link to="/login">Login</Link>
-          </LoginLink>
+          </LinkContainer>
         </SignupForm>
       </SignupFormContainer>
     </SignupContainer>

@@ -19,7 +19,15 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin:
+      process.env.NODE_ENV === "production"
+        ? "https://yourdomain.com"
+        : ["http://localhost:5173", "http://127.0.0.1:5173"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -46,21 +54,31 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-// Database connection
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
+// Start the server
+const startServer = async () => {
+  try {
+    // Connect to
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
     console.log("Connected to MongoDB");
+
+    // Start listening for requests
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("MongoDB connection error:", err);
-  });
+  } catch (error) {
+    console.error("Failed to connect to MongoDB:", error.message);
+    process.exit(1);
+  }
+};
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: "Something went wrong!" });
 });
+
+// Start the server
+startServer();

@@ -1,51 +1,82 @@
-import React from "react";
+import React, { Suspense } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   Navigate,
   useLocation,
+  Outlet,
 } from "react-router-dom";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import Layout from "./components/layout/Layout";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { GlobalStyles } from "./styles/GlobalStyles";
-import { lightTheme } from "./styles/theme";
-import PrivateRoute from "./components/routing/PrivateRoute";
+import GlobalStyles from "./theme/GlobalStyles";
+import PrivateRoute, {
+  RoleBasedRoute,
+} from "./components/routing/PrivateRoute";
 import { AnimatePresence } from "framer-motion";
+import { Player } from "@lottiefiles/react-lottie-player";
+import DashboardLayout from "./components/dashboard/DashboardLayout";
+
+// Loading animation
+const LoadingFallback = () => (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      height: "100vh",
+    }}
+  >
+    <Player
+      autoplay
+      loop
+      src="/loading-animation.json"
+      style={{ width: "200px", height: "200px" }}
+    />
+  </div>
+);
 
 // Pages
-import Home from "./pages/Home";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import Dashboard from "./pages/Dashboard";
-import Appointments from "./pages/Appointments";
-import Departments from "./pages/Departments";
-import Doctors from "./pages/Doctors";
-import BookAppointment from "./pages/BookAppointment";
-import Profile from "./pages/Profile";
-import NotFound from "./pages/NotFound";
-import Telemedicine from "./pages/Telemedicine";
+const Home = React.lazy(() => import("./pages/Home"));
+const Login = React.lazy(() => import("./pages/Login"));
+const Signup = React.lazy(() => import("./pages/Signup"));
+const Dashboard = React.lazy(() => import("./pages/Dashboard"));
+const Appointments = React.lazy(() => import("./pages/Appointments"));
+const Departments = React.lazy(() => import("./pages/Departments"));
+const Doctors = React.lazy(() => import("./pages/Doctors"));
+const Patients = React.lazy(() => import("./pages/Patients"));
+const PatientDetails = React.lazy(() => import("./pages/PatientDetails"));
+const BookAppointment = React.lazy(() => import("./pages/BookAppointment"));
+const Profile = React.lazy(() => import("./pages/Profile"));
+const NotFound = React.lazy(() => import("./pages/NotFound"));
+const Telemedicine = React.lazy(() => import("./pages/Telemedicine"));
+const PatientSignup = React.lazy(() => import("./pages/PatientSignup"));
+const MedicalRecords = React.lazy(() => import("./pages/MedicalRecords"));
+const AIDiagnostics = React.lazy(() => import("./pages/AIDiagnostics"));
+const Pharmacy = React.lazy(() => import("./pages/Pharmacy"));
 
 // Admin Pages
-import AdminDashboard from "./pages/admin/Dashboard";
-import ManageDepartments from "./pages/admin/ManageDepartments";
-import ManageDoctors from "./pages/admin/ManageDoctors";
-import ManageAppointments from "./pages/admin/ManageAppointments";
+const AdminDashboard = React.lazy(() => import("./pages/admin/Dashboard"));
+const ManageDepartments = React.lazy(() =>
+  import("./pages/admin/ManageDepartments")
+);
+const ManageDoctors = React.lazy(() => import("./pages/admin/ManageDoctors"));
+const ManageAppointments = React.lazy(() =>
+  import("./pages/admin/ManageAppointments")
+);
+// Now that we have created these files, we can uncomment them
+const ManagePatients = React.lazy(() => import("./pages/admin/ManagePatients"));
+const ManageLabTechnicians = React.lazy(() =>
+  import("./pages/admin/ManageLabTechnicians")
+);
 
-const ProtectedRoute = ({ children, title }) => {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
-
-  return <Layout title={title}>{children}</Layout>;
-};
+// Lab Technician Pages
+const LabReports = React.lazy(() => import("./pages/lab/LabReports"));
+const UploadLabResults = React.lazy(() =>
+  import("./pages/lab/UploadLabResults")
+);
+const ViewLabOrders = React.lazy(() => import("./pages/lab/ViewLabOrders"));
 
 // AnimatedRoutes component to handle page transitions
 const AnimatedRoutes = () => {
@@ -54,40 +85,224 @@ const AnimatedRoutes = () => {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        {/* Public Routes */}
+        <Route
+          path="/"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Home />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Login />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Signup />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/patient-signup"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <PatientSignup />
+            </Suspense>
+          }
+        />
 
+        {/* Protected Dashboard Routes */}
         <Route
           path="/dashboard"
           element={
             <PrivateRoute>
-              <Layout />
+              <DashboardLayout />
             </PrivateRoute>
           }
         >
+          {/* Common routes for all authenticated users */}
           <Route index element={<Dashboard />} />
-          <Route path="appointments" element={<Appointments />} />
-          <Route path="departments" element={<Departments />} />
-          <Route path="doctors" element={<Doctors />} />
+          <Route path="profile" element={<Profile />} />
+
+          {/* Patient specific routes */}
+          <Route
+            path="appointments"
+            element={
+              <RoleBasedRoute roles={["patient", "doctor", "admin"]}>
+                <Appointments />
+              </RoleBasedRoute>
+            }
+          />
           <Route
             path="book-appointment/:doctorId"
-            element={<BookAppointment />}
+            element={
+              <RoleBasedRoute roles={["patient"]}>
+                <BookAppointment />
+              </RoleBasedRoute>
+            }
           />
-          <Route path="profile" element={<Profile />} />
           <Route
             path="telemedicine/:appointmentId"
-            element={<Telemedicine />}
+            element={
+              <RoleBasedRoute roles={["patient", "doctor"]}>
+                <Telemedicine />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="medical-records"
+            element={
+              <RoleBasedRoute roles={["patient", "doctor", "admin"]}>
+                <MedicalRecords />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="ai-diagnostics"
+            element={
+              <RoleBasedRoute roles={["patient", "doctor"]}>
+                <AIDiagnostics />
+              </RoleBasedRoute>
+            }
           />
 
-          {/* Admin Routes */}
-          <Route path="admin/dashboard" element={<AdminDashboard />} />
-          <Route path="admin/departments" element={<ManageDepartments />} />
-          <Route path="admin/doctors" element={<ManageDoctors />} />
-          <Route path="admin/appointments" element={<ManageAppointments />} />
+          {/* Doctor specific routes */}
+          <Route
+            path="departments"
+            element={
+              <RoleBasedRoute roles={["doctor", "admin"]}>
+                <Departments />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="doctors"
+            element={
+              <RoleBasedRoute roles={["patient", "doctor", "admin"]}>
+                <Doctors />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="patients"
+            element={
+              <RoleBasedRoute roles={["doctor", "admin"]}>
+                <Patients />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="patients/:id"
+            element={
+              <RoleBasedRoute roles={["doctor", "admin"]}>
+                <PatientDetails />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="pharmacy"
+            element={
+              <RoleBasedRoute roles={["doctor", "admin"]}>
+                <Pharmacy />
+              </RoleBasedRoute>
+            }
+          />
+
+          {/* Lab Technician specific routes */}
+          <Route
+            path="lab-reports"
+            element={
+              <RoleBasedRoute roles={["labtechnician", "doctor", "admin"]}>
+                <LabReports />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="upload-lab-results"
+            element={
+              <RoleBasedRoute roles={["labtechnician"]}>
+                <UploadLabResults />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="view-lab-orders"
+            element={
+              <RoleBasedRoute roles={["labtechnician", "doctor"]}>
+                <ViewLabOrders />
+              </RoleBasedRoute>
+            }
+          />
+
+          {/* Admin Routes - Only accessible to admin role */}
+          <Route
+            path="admin/dashboard"
+            element={
+              <RoleBasedRoute roles={["admin"]}>
+                <AdminDashboard />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="admin/departments"
+            element={
+              <RoleBasedRoute roles={["admin"]}>
+                <ManageDepartments />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="admin/doctors"
+            element={
+              <RoleBasedRoute roles={["admin"]}>
+                <ManageDoctors />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="admin/appointments"
+            element={
+              <RoleBasedRoute roles={["admin"]}>
+                <ManageAppointments />
+              </RoleBasedRoute>
+            }
+          />
+          {/* Now we can uncomment the patient and lab technician routes */}
+          <Route
+            path="admin/patients"
+            element={
+              <RoleBasedRoute roles={["admin"]}>
+                <ManagePatients />
+              </RoleBasedRoute>
+            }
+          />
+          <Route
+            path="admin/lab-technicians"
+            element={
+              <RoleBasedRoute roles={["admin"]}>
+                <ManageLabTechnicians />
+              </RoleBasedRoute>
+            }
+          />
         </Route>
 
-        <Route path="*" element={<NotFound />} />
+        {/* Catch-all route */}
+        <Route
+          path="*"
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <NotFound />
+            </Suspense>
+          }
+        />
       </Routes>
     </AnimatePresence>
   );
@@ -95,8 +310,7 @@ const AnimatedRoutes = () => {
 
 function App() {
   return (
-    <ThemeProvider theme={lightTheme}>
-      <GlobalStyles />
+    <ThemeProvider>
       <AuthProvider>
         <Router>
           <AnimatedRoutes />
