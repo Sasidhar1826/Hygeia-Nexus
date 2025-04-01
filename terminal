@@ -1,0 +1,16 @@
+# Create the project directory
+mkdir hospital-management-system
+cd hospital-management-system
+
+# Create client with Vite
+npm create vite@latest client -- --template react
+cd client
+npm install
+cd ..
+
+# Create server directory
+mkdir server
+cd server
+npm init -y
+npm install express mongoose dotenv cors jsonwebtoken bcryptjs
+cd .. 
