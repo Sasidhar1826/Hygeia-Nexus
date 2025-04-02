@@ -1,9 +1,14 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import styled, { css } from "styled-components";
 import PropTypes from "prop-types";
 import { motion } from "framer-motion";
 
-const CardWrapper = styled(motion.div)`
+// Create a motion component that properly forwards refs
+const MotionComponent = forwardRef((props, ref) => {
+  return <motion.div ref={ref} {...props} />;
+});
+
+const CardWrapper = styled(MotionComponent)`
   background-color: ${(props) => props.theme.colors.background.card};
   border-radius: ${(props) => props.theme.borderRadius.medium};
   padding: ${(props) => props.theme.spacing(3)};
@@ -93,34 +98,42 @@ const CardWrapper = styled(motion.div)`
     `}
 `;
 
-const Card = ({
-  children,
-  variant = "default",
-  size = "medium",
-  interactive = false,
-  fullHeight = false,
-  noPadding = false,
-  bordered = false,
-  className,
-  onClick,
-  ...rest
-}) => {
-  return (
-    <CardWrapper
-      variant={variant}
-      size={size}
-      interactive={interactive}
-      fullHeight={fullHeight}
-      noPadding={noPadding}
-      bordered={bordered}
-      className={className}
-      onClick={onClick}
-      {...rest}
-    >
-      {children}
-    </CardWrapper>
-  );
-};
+const Card = forwardRef(
+  (
+    {
+      children,
+      variant = "default",
+      size = "medium",
+      interactive = false,
+      fullHeight = false,
+      noPadding = false,
+      bordered = false,
+      className,
+      onClick,
+      ...rest
+    },
+    ref
+  ) => {
+    return (
+      <CardWrapper
+        ref={ref}
+        variant={variant}
+        size={size}
+        interactive={interactive}
+        fullHeight={fullHeight}
+        noPadding={noPadding}
+        bordered={bordered}
+        className={className}
+        onClick={onClick}
+        {...rest}
+      >
+        {children}
+      </CardWrapper>
+    );
+  }
+);
+
+Card.displayName = "Card";
 
 Card.propTypes = {
   children: PropTypes.node,

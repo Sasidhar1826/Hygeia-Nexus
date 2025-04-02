@@ -239,80 +239,68 @@ const ViewLabOrders = () => {
 
   // Sample data - in a real app, this would come from an API
   useEffect(() => {
-    // Simulate API call
-    const fetchLabOrders = async () => {
-      setLoading(true);
-      try {
-        // Mock data for lab orders
-        setTimeout(() => {
-          setOrders([
-            {
-              id: "1",
-              type: "Blood Test",
-              status: "pending",
-              requestedBy: "Dr. Sarah Johnson",
-              patient: "John Smith",
-              department: "Cardiology",
-              date: "2025-04-05",
-              urgency: "Normal",
-              notes: "Check for infection markers and white blood cell count",
-            },
-            {
-              id: "2",
-              type: "Urine Analysis",
-              status: "pending",
-              requestedBy: "Dr. Sarah Johnson",
-              patient: "John Smith",
-              department: "Cardiology",
-              date: "2025-04-05",
-              urgency: "Urgent",
-              notes: "Check for kidney function and diabetes markers",
-            },
-            {
-              id: "3",
-              type: "X-Ray",
-              status: "in progress",
-              requestedBy: "Dr. Michael Rodriguez",
-              patient: "Emily Parker",
-              department: "Orthopedics",
-              date: "2025-04-04",
-              urgency: "Normal",
-              notes: "Chest X-ray to rule out pneumonia",
-            },
-            {
-              id: "4",
-              type: "MRI",
-              status: "completed",
-              requestedBy: "Dr. Sarah Johnson",
-              patient: "David Wilson",
-              department: "Neurology",
-              date: "2025-04-03",
-              urgency: "Normal",
-              notes: "Brain MRI to assess for tumor growth",
-            },
-          ]);
-          setLoading(false);
-        }, 1000);
-      } catch (error) {
-        console.error("Error fetching lab orders:", error);
-        setLoading(false);
-      }
-    };
-
     fetchLabOrders();
   }, []);
+
+  // Fetch lab orders from the API
+  const fetchLabOrders = async () => {
+    setLoading(true);
+    try {
+      const filters = {};
+
+      // If user is a lab technician, show orders assigned to them and pending ones
+      if (user?.role === "labtechnician") {
+        filters.technician = user._id;
+      }
+
+      const response = await mockAuthService.getLabOrders(filters);
+      setOrders(response);
+    } catch (error) {
+      console.error("Error fetching lab orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle order status updates
+  const handleUpdateStatus = async (
+    orderId,
+    newStatus,
+    technicianId = null
+  ) => {
+    try {
+      const updateData = {
+        status: newStatus,
+      };
+
+      // If starting to process, assign to current technician
+      if (newStatus === "in_progress" && user?.role === "labtechnician") {
+        updateData.technician = user._id;
+      }
+
+      await mockAuthService.updateLabOrder(orderId, updateData);
+
+      // Refresh the orders list
+      fetchLabOrders();
+    } catch (error) {
+      console.error("Error updating lab order status:", error);
+    }
+  };
 
   // Filter orders based on search and filter inputs
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       searchTerm === "" ||
-      order.patient.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.requestedBy.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.type.toLowerCase().includes(searchTerm.toLowerCase());
+      (order.patient?.name &&
+        order.patient.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (order.doctor?.name &&
+        order.doctor.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (order.testType &&
+        order.testType.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesStatus = statusFilter === "" || order.status === statusFilter;
 
-    const matchesType = typeFilter === "" || order.type === typeFilter;
+    const matchesType = typeFilter === "" || order.testType === typeFilter;
 
     return matchesSearch && matchesStatus && matchesType;
   });
@@ -359,7 +347,7 @@ const ViewLabOrders = () => {
           >
             <option value="">All statuses</option>
             <option value="pending">Pending</option>
-            <option value="in progress">In Progress</option>
+            <option value="in_progress">In Progress</option>
             <option value="completed">Completed</option>
           </Filter>
           <Filter
@@ -379,7 +367,7 @@ const ViewLabOrders = () => {
           <OrdersContainer>
             {filteredOrders.map((order) => (
               <OrderCard
-                key={order.id}
+                key={order._id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
@@ -387,12 +375,12 @@ const ViewLabOrders = () => {
                 <OrderHeader>
                   <OrderType>
                     <FaClipboardList />
-                    {order.type}
+                    {order.testType}
                   </OrderType>
                   <Status status={order.status}>
                     {order.status === "pending"
                       ? "Pending"
-                      : order.status === "in progress"
+                      : order.status === "in_progress"
                       ? "In Progress"
                       : "Completed"}
                   </Status>
@@ -405,14 +393,16 @@ const ViewLabOrders = () => {
                         <FaUserInjured />
                         Patient
                       </InfoLabel>
-                      <InfoValue>{order.patient}</InfoValue>
+                      <InfoValue>
+                        {order.patient?.name || order.patientName || "Unknown"}
+                      </InfoValue>
                     </InfoItem>
                     <InfoItem>
                       <InfoLabel>
                         <FaUserMd />
                         Requested By
                       </InfoLabel>
-                      <InfoValue>{order.requestedBy}</InfoValue>
+                      <InfoValue>{order.doctor?.name || "Unknown"}</InfoValue>
                     </InfoItem>
                   </OrderInfo>
 
@@ -420,16 +410,18 @@ const ViewLabOrders = () => {
                     <InfoItem>
                       <InfoLabel>
                         <FaCalendarAlt />
-                        Date
+                        Date Requested
                       </InfoLabel>
-                      <InfoValue>{formatDate(order.date)}</InfoValue>
+                      <InfoValue>{formatDate(order.requestedDate)}</InfoValue>
                     </InfoItem>
                     <InfoItem>
                       <InfoLabel>
                         <FaHospital />
                         Department
                       </InfoLabel>
-                      <InfoValue>{order.department}</InfoValue>
+                      <InfoValue>
+                        {order.department?.name || "Unknown"}
+                      </InfoValue>
                     </InfoItem>
                   </OrderInfo>
                 </OrderContent>
@@ -450,45 +442,58 @@ const ViewLabOrders = () => {
                 )}
 
                 <OrderActions>
-                  {order.status === "pending" && (
-                    <>
-                      <ActionButton
-                        variant="default"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <FaTimesCircle />
-                        Reject
-                      </ActionButton>
-                      <ActionButton
-                        variant="primary"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <FaCheckCircle />
-                        Start Processing
-                      </ActionButton>
-                    </>
-                  )}
+                  {order.status === "pending" &&
+                    user?.role === "labtechnician" && (
+                      <>
+                        <ActionButton
+                          variant="default"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() =>
+                            handleUpdateStatus(order._id, "rejected")
+                          }
+                        >
+                          <FaTimesCircle />
+                          Reject
+                        </ActionButton>
+                        <ActionButton
+                          variant="primary"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() =>
+                            handleUpdateStatus(order._id, "in_progress")
+                          }
+                        >
+                          <FaCheckCircle />
+                          Start Processing
+                        </ActionButton>
+                      </>
+                    )}
 
-                  {order.status === "in progress" && (
-                    <StyledLink to="/dashboard/upload-lab-results">
-                      <ActionButton
-                        variant="primary"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                  {order.status === "in_progress" &&
+                    order.technician?._id === user?._id && (
+                      <StyledLink
+                        to={`/dashboard/upload-lab-results?orderId=${order._id}`}
                       >
-                        <FaCheckCircle />
-                        Upload Results
-                      </ActionButton>
-                    </StyledLink>
-                  )}
+                        <ActionButton
+                          variant="primary"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <FaCheckCircle />
+                          Upload Results
+                        </ActionButton>
+                      </StyledLink>
+                    )}
 
-                  {order.status === "completed" && (
+                  {order.status === "completed" && order.reportId && (
                     <ActionButton
                       variant="default"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
+                      onClick={() =>
+                        navigate(`/dashboard/lab-reports?id=${order.reportId}`)
+                      }
                     >
                       View Results
                     </ActionButton>

@@ -12,6 +12,7 @@ import {
   FaVideo,
 } from "react-icons/fa";
 import api from "../services/api";
+import mockApi from "../services/mockApi";
 import { useAuth } from "../context/AuthContext";
 import Card from "../components/ui/Card";
 
@@ -426,8 +427,9 @@ const BookAppointment = () => {
     const fetchDoctor = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/doctors/${doctorId}`);
-        setDoctor(response.data);
+        // Use mockApi instead of direct API call
+        const response = await mockApi.getDoctorById(doctorId);
+        setDoctor(response);
         setLoading(false);
       } catch (err) {
         console.error("Error fetching doctor:", err);
@@ -460,40 +462,68 @@ const BookAppointment = () => {
       return;
     }
 
+    if (!user || !user._id) {
+      setError("You must be logged in to book an appointment");
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setError("");
 
+      // Ensure consistent time format (24-hour format without AM/PM)
+      const formattedStartTime = selectedTimeSlot;
+
       // Calculate appointment end time (30 min duration)
-      const [hours, minutes] = selectedTimeSlot.split(":");
+      const [hours, minutes] = formattedStartTime.split(":");
       const startTime = new Date(selectedDate);
       startTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
       const endTime = new Date(startTime);
       endTime.setMinutes(endTime.getMinutes() + 30);
 
+      const formattedEndTime = `${endTime
+        .getHours()
+        .toString()
+        .padStart(2, "0")}:${endTime.getMinutes().toString().padStart(2, "0")}`;
+
+      // Format date for appointment
+      const appointmentDate = new Date(selectedDate)
+        .toISOString()
+        .split("T")[0];
+
+      console.log("Creating appointment with times:", {
+        date: appointmentDate,
+        startTime: formattedStartTime,
+        endTime: formattedEndTime,
+      });
+
       const appointmentData = {
+        patient: user._id,
         doctor: doctorId,
         department: doctor.department._id,
-        appointmentDate: selectedDate,
-        startTime: selectedTimeSlot,
-        endTime: `${endTime.getHours()}:${endTime
-          .getMinutes()
-          .toString()
-          .padStart(2, "0")}`,
+        appointmentDate,
+        startTime: formattedStartTime,
+        endTime: formattedEndTime,
         reason,
         notes: additionalNotes,
         type: appointmentType,
+        status: "pending",
       };
 
-      const response = await api.post("/appointments", appointmentData);
+      // Use mockApi instead of direct API call
+      const response = await mockApi.createAppointment(appointmentData);
+      console.log("Appointment created:", response);
 
       setSuccess("Appointment booked successfully!");
       setIsSubmitting(false);
 
       // Redirect to appointments page after 2 seconds
       setTimeout(() => {
-        navigate("/appointments");
+        navigate("/dashboard/appointments");
       }, 2000);
     } catch (err) {
       console.error("Error booking appointment:", err);

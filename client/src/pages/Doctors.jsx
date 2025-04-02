@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, forwardRef } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import styled from "styled-components";
 import { motion } from "framer-motion";
@@ -10,6 +10,7 @@ import {
   FaCalendarAlt,
 } from "react-icons/fa";
 import api from "../services/api";
+import mockApi from "../services/mockApi";
 import Card from "../components/ui/Card";
 
 const DoctorsContainer = styled.div`
@@ -213,8 +214,9 @@ const Doctors = () => {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await api.get("/departments");
-        setDepartments(response.data);
+        // Use mockApi instead of direct API call
+        const response = await mockApi.getDepartments();
+        setDepartments(response);
       } catch (error) {
         console.error("Error fetching departments:", error);
       }
@@ -229,29 +231,32 @@ const Doctors = () => {
       try {
         setLoading(true);
 
-        let url = "/doctors";
-        const params = new URLSearchParams();
+        // Prepare filter parameters
+        const filters = {};
 
         if (selectedDepartment) {
-          params.append("department", selectedDepartment);
+          filters.department = selectedDepartment;
         }
 
         if (selectedSpecialization) {
-          params.append("specialization", selectedSpecialization);
+          filters.specialization = selectedSpecialization;
         }
 
-        if (params.toString()) {
-          url += `?${params.toString()}`;
-        }
+        // Use mockApi instead of direct API call
+        const response = await mockApi.getDoctors(filters);
 
-        const response = await api.get(url);
-        setDoctors(response.data);
-        setFilteredDoctors(response.data);
+        // Ensure we only show active doctors
+        const activeDoctors = response.filter(
+          (doctor) => doctor.isActive !== false
+        );
+
+        setDoctors(activeDoctors);
+        setFilteredDoctors(activeDoctors);
 
         // Extract unique specializations
         const specs = [
           ...new Set(
-            response.data.map((doc) => doc.specialization).filter(Boolean)
+            activeDoctors.map((doc) => doc.specialization).filter(Boolean)
           ),
         ];
         setSpecializations(specs);
@@ -378,7 +383,9 @@ const Doctors = () => {
                   )}
                   {doctor.department && (
                     <DoctorDepartment>
-                      {doctor.department.name}
+                      {typeof doctor.department === "object"
+                        ? doctor.department.name
+                        : "Department information not available"}
                     </DoctorDepartment>
                   )}
                 </DoctorInfo>
@@ -391,7 +398,9 @@ const Doctors = () => {
                   <ConsultationFee>
                     Fee: ${doctor.consultationFee || "N/A"}
                   </ConsultationFee>
-                  <BookAppointmentButton to={`/book-appointment/${doctor._id}`}>
+                  <BookAppointmentButton
+                    to={`/dashboard/book-appointment/${doctor._id}`}
+                  >
                     <FaCalendarAlt />
                     Book Appointment
                   </BookAppointmentButton>

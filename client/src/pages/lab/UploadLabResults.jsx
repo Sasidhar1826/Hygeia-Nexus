@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion } from "framer-motion";
 import {
@@ -7,11 +7,14 @@ import {
   FaFileMedical,
   FaVial,
   FaCheck,
+  FaPlus,
+  FaTimes,
 } from "react-icons/fa";
 import PageTransition from "../../components/animations/PageTransition";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
 import mockAuthService from "../../services/mockApi";
+import { useLocation, useNavigate } from "react-router-dom";
 
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -140,6 +143,17 @@ const ResultItemContainer = styled.div`
   background-color: ${(props) => props.theme.colors.background.default};
 `;
 
+const ResultItem = styled.div`
+  margin-bottom: ${(props) => props.theme.spacing(2)};
+  padding: ${(props) => props.theme.spacing(2)};
+  border: 1px solid ${(props) => props.theme.colors.border};
+  border-radius: ${(props) => props.theme.borderRadius.small};
+  background-color: ${(props) => props.theme.colors.background.default};
+  display: flex;
+  gap: ${(props) => props.theme.spacing(2)};
+  align-items: flex-end;
+`;
+
 const ResultRow = styled.div`
   display: flex;
   gap: ${(props) => props.theme.spacing(2)};
@@ -181,6 +195,42 @@ const RemoveButton = styled.button`
 
   &:hover {
     background-color: ${(props) => props.theme.colors.status.error + "20"};
+  }
+`;
+
+const Button = styled(motion.button)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${(props) => props.theme.spacing(1)};
+  padding: ${(props) => props.theme.spacing(1.5)}
+    ${(props) => props.theme.spacing(3)};
+  background-color: ${(props) =>
+    props.variant === "secondary"
+      ? props.theme.colors.background.default
+      : props.theme.colors.primary.main};
+  color: ${(props) =>
+    props.variant === "secondary" ? props.theme.colors.text.primary : "white"};
+  border: ${(props) =>
+    props.variant === "secondary"
+      ? `1px solid ${props.theme.colors.border}`
+      : "none"};
+  border-radius: ${(props) => props.theme.borderRadius.medium};
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background-color: ${(props) =>
+      props.variant === "secondary"
+        ? props.theme.colors.background.card
+        : props.theme.colors.primary.light};
+  }
+
+  &:disabled {
+    background-color: ${(props) => props.theme.colors.text.disabled};
+    cursor: not-allowed;
   }
 `;
 
@@ -236,6 +286,15 @@ const SuccessText = styled.p`
 `;
 
 const UploadLabResults = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const queryParams = new URLSearchParams(location.search);
+  const orderId = queryParams.get("orderId");
+
+  const [patients, setPatients] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedPatient, setSelectedPatient] = useState("");
   const [reportType, setReportType] = useState("Blood Test");
   const [notes, setNotes] = useState("");
@@ -243,8 +302,66 @@ const UploadLabResults = () => {
     { parameter: "", value: "", unit: "" },
   ]);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [success, setSuccess] = useState(false);
-  const { user } = useAuth();
+
+  useEffect(() => {
+    // Fetch patients and lab orders
+    const fetchData = async () => {
+      try {
+        setInitialLoading(true);
+
+        // Get the list of patients for the dropdown
+        const patientsData = await mockAuthService.getPatients();
+        setPatients(patientsData);
+
+        // Get lab orders for the current technician
+        const ordersData = await mockAuthService.getLabOrders({
+          technician: user._id,
+          status: "in_progress",
+        });
+        setOrders(ordersData);
+
+        // If an orderId is provided in the URL, select it
+        if (orderId) {
+          const order = ordersData.find((o) => o._id === orderId);
+          if (order) {
+            setSelectedOrder(order);
+            setSelectedPatient(order.patient._id);
+            setReportType(order.testType);
+            setNotes(order.notes || "");
+
+            // Set default parameters based on test type
+            if (order.testType === "Blood Test") {
+              setResults([
+                { parameter: "Hemoglobin", value: "", unit: "g/dL" },
+                {
+                  parameter: "White Blood Cells",
+                  value: "",
+                  unit: "thousand/μL",
+                },
+                { parameter: "Platelets", value: "", unit: "thousand/μL" },
+                { parameter: "Glucose", value: "", unit: "mg/dL" },
+              ]);
+            } else if (order.testType === "Urine Analysis") {
+              setResults([
+                { parameter: "pH", value: "", unit: "" },
+                { parameter: "Specific Gravity", value: "", unit: "" },
+                { parameter: "Glucose", value: "", unit: "mg/dL" },
+                { parameter: "Protein", value: "", unit: "mg/dL" },
+              ]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [orderId, user._id]);
 
   const addResultItem = () => {
     setResults([...results, { parameter: "", value: "", unit: "" }]);
@@ -286,18 +403,22 @@ const UploadLabResults = () => {
       };
 
       // Call the API to upload the report
-      await mockAuthService.uploadLabReport(reportData);
+      const uploadedReport = await mockAuthService.uploadLabReport(reportData);
+
+      // If this is linked to an order, update the order status and link the report
+      if (selectedOrder) {
+        await mockAuthService.updateLabOrder(selectedOrder._id, {
+          status: "completed",
+          reportId: uploadedReport._id,
+        });
+      }
 
       // Show success message
       setSuccess(true);
 
       // Reset form after success
       setTimeout(() => {
-        setSelectedPatient("");
-        setReportType("Blood Test");
-        setNotes("");
-        setResults([{ parameter: "", value: "", unit: "" }]);
-        setSuccess(false);
+        navigate("/dashboard/view-lab-orders");
       }, 3000);
     } catch (error) {
       console.error("Error uploading lab report:", error);
@@ -305,6 +426,14 @@ const UploadLabResults = () => {
       setLoading(false);
     }
   };
+
+  if (initialLoading) {
+    return (
+      <PageTransition>
+        <AnimationContainer type="loading" height="300px" />
+      </PageTransition>
+    );
+  }
 
   if (success) {
     return (
@@ -347,18 +476,154 @@ const UploadLabResults = () => {
                 <FaUser />
                 Patient Information
               </SectionTitle>
-              <FormGroup>
-                <Label htmlFor="patient">Select Patient</Label>
-                <Select
-                  id="patient"
-                  value={selectedPatient}
-                  onChange={(e) => setSelectedPatient(e.target.value)}
-                  required
-                >
-                  <option value="">-- Select Patient --</option>
-                  <option value="3">John Smith</option>
-                </Select>
-              </FormGroup>
+
+              {selectedOrder ? (
+                // When we have a selected order, show patient and doctor info directly
+                <>
+                  <div style={{ marginBottom: "1rem" }}>
+                    <Label>Patient</Label>
+                    <div
+                      style={{
+                        padding: "0.75rem",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                        backgroundColor: "#f9f9f9",
+                      }}
+                    >
+                      {selectedOrder.patient?.name || "Unknown Patient"}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: "1rem" }}>
+                    <Label>Requested By</Label>
+                    <div
+                      style={{
+                        padding: "0.75rem",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                        backgroundColor: "#f9f9f9",
+                      }}
+                    >
+                      {selectedOrder.doctor?.name || "Unknown Doctor"}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: "1rem" }}>
+                    <Label>Date Requested</Label>
+                    <div
+                      style={{
+                        padding: "0.75rem",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                        backgroundColor: "#f9f9f9",
+                      }}
+                    >
+                      {new Date(selectedOrder.requestedDate).toLocaleDateString(
+                        "en-US",
+                        {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        }
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                // When no order is selected, show the dropdown for manual selection
+                <>
+                  <FormGroup>
+                    <Label htmlFor="patient">Patient</Label>
+                    <Select
+                      id="patient"
+                      value={selectedPatient}
+                      onChange={(e) => setSelectedPatient(e.target.value)}
+                      required
+                    >
+                      <option value="">-- Select Patient --</option>
+                      {patients.map((patient) => (
+                        <option key={patient._id} value={patient._id}>
+                          {patient.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+
+                  {orders.length > 0 && (
+                    <FormGroup>
+                      <Label htmlFor="order">Lab Order (Optional)</Label>
+                      <Select
+                        id="order"
+                        value={selectedOrder?._id || ""}
+                        onChange={(e) => {
+                          const order = orders.find(
+                            (o) => o._id === e.target.value
+                          );
+                          setSelectedOrder(order || null);
+                          if (order) {
+                            setSelectedPatient(order.patient._id);
+                            setReportType(order.testType);
+                            setNotes(order.notes || "");
+
+                            // Set default parameters based on test type
+                            if (order.testType === "Blood Test") {
+                              setResults([
+                                {
+                                  parameter: "Hemoglobin",
+                                  value: "",
+                                  unit: "g/dL",
+                                },
+                                {
+                                  parameter: "White Blood Cells",
+                                  value: "",
+                                  unit: "thousand/μL",
+                                },
+                                {
+                                  parameter: "Platelets",
+                                  value: "",
+                                  unit: "thousand/μL",
+                                },
+                                {
+                                  parameter: "Glucose",
+                                  value: "",
+                                  unit: "mg/dL",
+                                },
+                              ]);
+                            } else if (order.testType === "Urine Analysis") {
+                              setResults([
+                                { parameter: "pH", value: "", unit: "" },
+                                {
+                                  parameter: "Specific Gravity",
+                                  value: "",
+                                  unit: "",
+                                },
+                                {
+                                  parameter: "Glucose",
+                                  value: "",
+                                  unit: "mg/dL",
+                                },
+                                {
+                                  parameter: "Protein",
+                                  value: "",
+                                  unit: "mg/dL",
+                                },
+                              ]);
+                            }
+                          }
+                        }}
+                      >
+                        <option value="">-- Select Order --</option>
+                        {orders.map((order) => (
+                          <option key={order._id} value={order._id}>
+                            {order.testType} for{" "}
+                            {order.patient?.name || "Unknown Patient"}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormGroup>
+                  )}
+                </>
+              )}
             </FormSection>
 
             <FormSection>
@@ -366,21 +631,40 @@ const UploadLabResults = () => {
                 <FaFileMedical />
                 Report Details
               </SectionTitle>
-              <FormGroup>
-                <Label htmlFor="reportType">Test Type</Label>
-                <Select
-                  id="reportType"
-                  value={reportType}
-                  onChange={(e) => setReportType(e.target.value)}
-                  required
-                >
-                  <option value="Blood Test">Blood Test</option>
-                  <option value="Urine Analysis">Urine Analysis</option>
-                  <option value="X-Ray">X-Ray</option>
-                  <option value="CT Scan">CT Scan</option>
-                  <option value="MRI">MRI</option>
-                </Select>
-              </FormGroup>
+
+              {selectedOrder ? (
+                // When we have a selected order, show test type directly
+                <div style={{ marginBottom: "1rem" }}>
+                  <Label>Test Type</Label>
+                  <div
+                    style={{
+                      padding: "0.75rem",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor: "#f9f9f9",
+                    }}
+                  >
+                    {reportType}
+                  </div>
+                </div>
+              ) : (
+                // When no order is selected, show the dropdown for selection
+                <FormGroup>
+                  <Label htmlFor="reportType">Test Type</Label>
+                  <Select
+                    id="reportType"
+                    value={reportType}
+                    onChange={(e) => setReportType(e.target.value)}
+                    required
+                  >
+                    <option value="Blood Test">Blood Test</option>
+                    <option value="Urine Analysis">Urine Analysis</option>
+                    <option value="X-Ray">X-Ray</option>
+                    <option value="CT Scan">CT Scan</option>
+                    <option value="MRI">MRI</option>
+                  </Select>
+                </FormGroup>
+              )}
 
               <FormGroup>
                 <Label htmlFor="notes">Notes</Label>
@@ -399,80 +683,71 @@ const UploadLabResults = () => {
                 Test Results
               </SectionTitle>
 
-              {results.map((item, index) => (
-                <ResultItemContainer key={index}>
-                  <ResultRow>
-                    <Column>
-                      <Label>Parameter</Label>
-                      <Input
-                        type="text"
-                        value={item.parameter}
-                        onChange={(e) =>
-                          handleResultChange(index, "parameter", e.target.value)
-                        }
-                        placeholder="e.g., Hemoglobin"
-                        required
-                      />
-                    </Column>
-                    <Column>
-                      <Label>Value</Label>
-                      <Input
-                        type="text"
-                        value={item.value}
-                        onChange={(e) =>
-                          handleResultChange(index, "value", e.target.value)
-                        }
-                        placeholder="e.g., 14.5"
-                        required
-                      />
-                    </Column>
-                    <Column>
-                      <Label>Unit</Label>
-                      <Input
-                        type="text"
-                        value={item.unit}
-                        onChange={(e) =>
-                          handleResultChange(index, "unit", e.target.value)
-                        }
-                        placeholder="e.g., g/dL"
-                        required
-                      />
-                    </Column>
-                  </ResultRow>
-
+              {results.map((result, index) => (
+                <ResultItem key={index}>
+                  <FormGroup style={{ flex: 2 }}>
+                    <Label htmlFor={`parameter-${index}`}>Parameter</Label>
+                    <Input
+                      id={`parameter-${index}`}
+                      value={result.parameter}
+                      onChange={(e) =>
+                        handleResultChange(index, "parameter", e.target.value)
+                      }
+                      placeholder="e.g. Hemoglobin"
+                      required
+                    />
+                  </FormGroup>
+                  <FormGroup style={{ flex: 1 }}>
+                    <Label htmlFor={`value-${index}`}>Value</Label>
+                    <Input
+                      id={`value-${index}`}
+                      value={result.value}
+                      onChange={(e) =>
+                        handleResultChange(index, "value", e.target.value)
+                      }
+                      placeholder="14.5"
+                      required
+                    />
+                  </FormGroup>
+                  <FormGroup style={{ flex: 1 }}>
+                    <Label htmlFor={`unit-${index}`}>Unit</Label>
+                    <Input
+                      id={`unit-${index}`}
+                      value={result.unit}
+                      onChange={(e) =>
+                        handleResultChange(index, "unit", e.target.value)
+                      }
+                      placeholder="g/dL"
+                    />
+                  </FormGroup>
                   {results.length > 1 && (
-                    <div style={{ textAlign: "right" }}>
-                      <RemoveButton
-                        type="button"
-                        onClick={() => removeResultItem(index)}
-                      >
-                        Remove
-                      </RemoveButton>
-                    </div>
+                    <RemoveButton
+                      type="button"
+                      onClick={() => removeResultItem(index)}
+                    >
+                      <FaTimes />
+                    </RemoveButton>
                   )}
-                </ResultItemContainer>
+                </ResultItem>
               ))}
 
-              <AddButton type="button" onClick={addResultItem}>
-                + Add Another Result
-              </AddButton>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={addResultItem}
+                style={{ marginTop: "1rem" }}
+              >
+                <FaPlus /> Add Parameter
+              </Button>
             </FormSection>
 
-            <ButtonContainer>
-              <SubmitButton
-                type="submit"
-                disabled={loading}
-                whileTap={{ scale: 0.95 }}
-              >
-                {loading ? (
-                  <>Processing...</>
-                ) : (
-                  <>
-                    <FaUpload /> Upload Results
-                  </>
-                )}
-              </SubmitButton>
-            </ButtonContainer>
+            <Button
+              type="submit"
+              disabled={loading}
+              style={{ marginTop: "2rem" }}
+            >
+              {loading ? "Uploading..." : "Upload Lab Results"}
+            </Button>
           </form>
         </FormContainer>
       </PageContainer>

@@ -167,13 +167,14 @@ const mockAppointments = [
     _id: "1",
     patient: "3",
     doctor: "2",
+    department: "1",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() + 3))
       .toISOString()
       .split("T")[0],
     startTime: "10:00 AM",
     endTime: "10:30 AM",
     reason: "Annual Checkup",
-    status: "scheduled",
+    status: "confirmed",
     notes: "",
     createdAt: new Date().toISOString(),
   },
@@ -181,6 +182,7 @@ const mockAppointments = [
     _id: "2",
     patient: "3",
     doctor: "2",
+    department: "1",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() - 5))
       .toISOString()
       .split("T")[0],
@@ -192,6 +194,70 @@ const mockAppointments = [
       "Patient recovering well. Prescribed medication continued for 2 more weeks.",
     createdAt: new Date(
       new Date().setDate(new Date().getDate() - 10)
+    ).toISOString(),
+  },
+  {
+    _id: "3",
+    patient: "1",
+    doctor: "2",
+    department: "1",
+    appointmentDate: new Date(new Date().setDate(new Date().getDate() + 5))
+      .toISOString()
+      .split("T")[0],
+    startTime: "09:00 AM",
+    endTime: "09:30 AM",
+    reason: "Cardiology Consultation",
+    status: "pending",
+    notes: "",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "4",
+    patient: "1",
+    doctor: "8",
+    department: "2",
+    appointmentDate: new Date(new Date().setDate(new Date().getDate() + 10))
+      .toISOString()
+      .split("T")[0],
+    startTime: "11:30 AM",
+    endTime: "12:00 PM",
+    reason: "Neurology Follow-up",
+    status: "confirmed",
+    notes: "",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "5",
+    patient: "1",
+    doctor: "10",
+    department: "4",
+    appointmentDate: new Date(new Date().setDate(new Date().getDate() - 7))
+      .toISOString()
+      .split("T")[0],
+    startTime: "03:15 PM",
+    endTime: "03:45 PM",
+    reason: "Orthopedic Evaluation",
+    status: "completed",
+    notes: "Patient advised physical therapy for 2 weeks.",
+    createdAt: new Date(
+      new Date().setDate(new Date().getDate() - 15)
+    ).toISOString(),
+  },
+  {
+    _id: "6",
+    patient: "1",
+    doctor: "9",
+    department: "3",
+    appointmentDate: new Date(new Date().setDate(new Date().getDate() - 2))
+      .toISOString()
+      .split("T")[0],
+    startTime: "10:45 AM",
+    endTime: "11:15 AM",
+    reason: "Prescription Renewal",
+    status: "cancelled",
+    notes: "Cancelled by patient.",
+    createdAt: new Date(
+      new Date().setDate(new Date().getDate() - 8)
     ).toISOString(),
   },
 ];
@@ -211,6 +277,64 @@ const mockLabReports = [
       platelets: "250 thousand/μL",
       glucose: "95 mg/dL",
     },
+  },
+];
+
+// Mock lab orders
+const mockLabOrders = [
+  {
+    _id: "1",
+    patient: "3", // John Smith
+    doctor: "2", // Dr. Sarah Johnson
+    testType: "Blood Test",
+    status: "pending",
+    urgency: "Normal",
+    requestedDate: new Date().toISOString(),
+    notes: "Check for infection markers and white blood cell count",
+    department: "1", // Cardiology
+  },
+  {
+    _id: "2",
+    patient: "3", // John Smith
+    doctor: "2", // Dr. Sarah Johnson
+    testType: "Urine Analysis",
+    status: "pending",
+    urgency: "Urgent",
+    requestedDate: new Date().toISOString(),
+    notes: "Check for kidney function and diabetes markers",
+    department: "1", // Cardiology
+  },
+  {
+    _id: "3",
+    patient: "5", // Emily Parker
+    doctor: "10", // Dr. James Wilson
+    testType: "X-Ray",
+    status: "in_progress",
+    urgency: "Normal",
+    requestedDate: new Date(
+      new Date().setDate(new Date().getDate() - 1)
+    ).toISOString(),
+    notes: "Chest X-ray to rule out pneumonia",
+    technician: "4", // Michael Rodriguez
+    department: "4", // Orthopedics
+  },
+  {
+    _id: "4",
+    patient: "6", // David Wilson
+    doctor: "8", // Dr. Robert Chen
+    testType: "MRI",
+    status: "completed",
+    urgency: "Normal",
+    requestedDate: new Date(
+      new Date().setDate(new Date().getDate() - 2)
+    ).toISOString(),
+    notes: "Brain MRI to assess for tumor growth",
+    technician: "7", // Jessica Brown
+    completedDate: new Date(
+      new Date().setDate(new Date().getDate() - 1)
+    ).toISOString(),
+    department: "2", // Neurology
+    reportId: "1", // Reference to the mockLabReports _id
   },
 ];
 
@@ -393,12 +517,15 @@ const mockApi = {
     await delay(500);
 
     let filteredAppointments = [...mockAppointments];
+    console.log("All appointments:", mockAppointments);
+    console.log("Filters applied:", filters);
 
     // Apply filters
     if (filters.patient) {
       filteredAppointments = filteredAppointments.filter(
         (a) => a.patient === filters.patient
       );
+      console.log("After patient filter:", filteredAppointments);
     }
 
     if (filters.doctor) {
@@ -419,10 +546,16 @@ const mockApi = {
       );
     }
 
+    // Make sure we have all appointments in the debug log
+    console.log("Final filtered appointments:", filteredAppointments);
+
     // Populate patient and doctor information
     return filteredAppointments.map((appointment) => {
       const patient = mockUsers.find((u) => u._id === appointment.patient);
       const doctor = mockUsers.find((u) => u._id === appointment.doctor);
+      const department = mockDepartments.find(
+        (d) => doctor && doctor.department === d._id
+      );
 
       return {
         ...appointment,
@@ -440,6 +573,12 @@ const mockApi = {
               specialization: doctor.specialization,
             }
           : null,
+        department: department
+          ? {
+              _id: department._id,
+              name: department.name,
+            }
+          : null,
       };
     });
   },
@@ -447,12 +586,72 @@ const mockApi = {
   createAppointment: async (appointmentData) => {
     await delay(800);
 
+    // Check for time conflicts with existing confirmed appointments
+    const conflictingAppointments = mockAppointments.filter((appointment) => {
+      // Only check for confirmed appointments
+      if (appointment.status !== "confirmed") return false;
+
+      // Check same doctor, same date
+      if (
+        appointment.doctor !== appointmentData.doctor ||
+        appointment.appointmentDate !== appointmentData.appointmentDate
+      ) {
+        return false;
+      }
+
+      // Convert time strings to comparable values (e.g., minutes since midnight)
+      const convertTimeToMinutes = (timeStr) => {
+        // Handle both 24-hour format and AM/PM format
+        if (
+          timeStr.toLowerCase().includes("am") ||
+          timeStr.toLowerCase().includes("pm")
+        ) {
+          // Handle AM/PM format
+          const [timePart, period] = timeStr.split(" ");
+          const [hours, minutes] = timePart.split(":").map(Number);
+          const isPM = period.toLowerCase() === "pm" && hours < 12;
+          const isAM = period.toLowerCase() === "am" && hours === 12;
+          return (isPM ? hours + 12 : isAM ? 0 : hours) * 60 + minutes;
+        } else {
+          // Handle 24-hour format
+          const [hours, minutes] = timeStr.split(":").map(Number);
+          return hours * 60 + minutes;
+        }
+      };
+
+      const existingStart = convertTimeToMinutes(appointment.startTime);
+      const existingEnd = convertTimeToMinutes(appointment.endTime);
+      const newStart = convertTimeToMinutes(appointmentData.startTime);
+      const newEnd = convertTimeToMinutes(appointmentData.endTime);
+
+      // Check for time overlap
+      return (
+        (newStart >= existingStart && newStart < existingEnd) || // New appointment starts during existing
+        (newEnd > existingStart && newEnd <= existingEnd) || // New appointment ends during existing
+        (newStart <= existingStart && newEnd >= existingEnd) // New appointment completely encompasses existing
+      );
+    });
+
+    if (conflictingAppointments.length > 0) {
+      throw {
+        response: {
+          data: {
+            message:
+              "This time slot is already booked. Please select another time.",
+          },
+        },
+      };
+    }
+
     const newAppointment = {
       _id: (mockAppointments.length + 1).toString(),
       ...appointmentData,
-      status: appointmentData.status || "scheduled",
+      status: appointmentData.status || "pending",
       createdAt: new Date().toISOString(),
     };
+
+    // For debugging, log the newly created appointment
+    console.log("New appointment created:", newAppointment);
 
     mockAppointments.push(newAppointment);
     return newAppointment;
@@ -542,6 +741,133 @@ const mockApi = {
 
     mockLabReports.push(newReport);
     return newReport;
+  },
+
+  // Lab Orders
+  getLabOrders: async (filters = {}) => {
+    await delay(500);
+
+    let filteredOrders = [...mockLabOrders];
+
+    // Apply filters
+    if (filters.patient) {
+      filteredOrders = filteredOrders.filter(
+        (o) => o.patient === filters.patient
+      );
+    }
+
+    if (filters.doctor) {
+      filteredOrders = filteredOrders.filter(
+        (o) => o.doctor === filters.doctor
+      );
+    }
+
+    // Special handling for lab technicians - they should see:
+    // 1. Orders already assigned to them
+    // 2. All pending orders that need a technician to accept
+    if (filters.technician) {
+      filteredOrders = filteredOrders.filter(
+        (o) => o.technician === filters.technician || o.status === "pending"
+      );
+    }
+
+    if (filters.status) {
+      filteredOrders = filteredOrders.filter(
+        (o) => o.status === filters.status
+      );
+    }
+
+    if (filters.testType) {
+      filteredOrders = filteredOrders.filter(
+        (o) => o.testType === filters.testType
+      );
+    }
+
+    // Populate patient, doctor, technician and department information
+    return filteredOrders.map((order) => {
+      const patient = mockUsers.find((u) => u._id === order.patient);
+      const doctor = mockUsers.find((u) => u._id === order.doctor);
+      const technician = order.technician
+        ? mockUsers.find((u) => u._id === order.technician)
+        : null;
+      const department = mockDepartments.find(
+        (d) => d._id === order.department
+      );
+
+      return {
+        ...order,
+        patient: patient
+          ? {
+              _id: patient._id,
+              name: patient.name,
+              email: patient.email,
+            }
+          : order.patientName // If patient lookup fails but we have patientName, use it
+          ? {
+              _id: order.patient,
+              name: order.patientName,
+            }
+          : null,
+        doctor: doctor
+          ? {
+              _id: doctor._id,
+              name: doctor.name,
+              specialization: doctor.specialization,
+            }
+          : null,
+        technician: technician
+          ? {
+              _id: technician._id,
+              name: technician.name,
+            }
+          : null,
+        department: department
+          ? {
+              _id: department._id,
+              name: department.name,
+            }
+          : null,
+      };
+    });
+  },
+
+  createLabOrder: async (orderData) => {
+    await delay(800);
+
+    const newOrder = {
+      _id: (mockLabOrders.length + 1).toString(),
+      ...orderData,
+      status: "pending",
+      requestedDate: new Date().toISOString(),
+    };
+
+    mockLabOrders.push(newOrder);
+    return newOrder;
+  },
+
+  updateLabOrder: async (id, updateData) => {
+    await delay(600);
+
+    const orderIndex = mockLabOrders.findIndex((o) => o._id === id);
+    if (orderIndex === -1) {
+      throw { response: { data: { message: "Lab order not found" } } };
+    }
+
+    // Update order data
+    mockLabOrders[orderIndex] = {
+      ...mockLabOrders[orderIndex],
+      ...updateData,
+    };
+
+    // If status is changed to completed, set completedDate
+    if (
+      updateData.status === "completed" &&
+      !mockLabOrders[orderIndex].completedDate
+    ) {
+      mockLabOrders[orderIndex].completedDate = new Date().toISOString();
+    }
+
+    return mockLabOrders[orderIndex];
   },
 
   // Patient management

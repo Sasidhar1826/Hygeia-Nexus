@@ -14,7 +14,11 @@ import {
   FaPrint,
   FaTrashAlt,
   FaUser,
+  FaFlask,
 } from "react-icons/fa";
+import { useAuth } from "../context/AuthContext";
+import RequestLabTest from "../components/modals/RequestLabTest";
+import mockApi from "../services/mockApi";
 
 const PageHeader = styled.div`
   display: flex;
@@ -295,7 +299,7 @@ const AppointmentStatus = styled.div`
   }};
 `;
 
-// Mock data for a patient
+// Mock data for a patient - keep basic patient info but will fetch appointments separately
 const mockPatient = {
   id: "1",
   firstName: "John",
@@ -325,35 +329,6 @@ const mockPatient = {
   },
   allergies: ["Penicillin", "Peanuts"],
   chronicConditions: ["Hypertension", "Type 2 Diabetes"],
-  appointments: [
-    {
-      id: "app1",
-      date: "2024-04-20",
-      time: "09:30 AM",
-      reason: "Annual Check-up",
-      doctor: "Dr. Sarah Johnson",
-      department: "General Medicine",
-      status: "scheduled",
-    },
-    {
-      id: "app2",
-      date: "2024-03-15",
-      time: "10:00 AM",
-      reason: "Follow-up Consultation",
-      doctor: "Dr. Michael Rodriguez",
-      department: "Cardiology",
-      status: "completed",
-    },
-    {
-      id: "app3",
-      date: "2024-02-05",
-      time: "02:15 PM",
-      reason: "Prescription Renewal",
-      doctor: "Dr. Sarah Johnson",
-      department: "General Medicine",
-      status: "completed",
-    },
-  ],
   medicalRecords: [
     {
       id: "rec1",
@@ -397,31 +372,52 @@ const mockPatient = {
 const PatientDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [patient, setPatient] = useState(null);
+  const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("appointments");
+  const [showLabTestModal, setShowLabTestModal] = useState(false);
 
   useEffect(() => {
-    // Simulate API call
-    const fetchPatient = async () => {
+    // Fetch patient data and appointments
+    const fetchData = async () => {
       try {
         setLoading(true);
-        // In a real app, you would fetch from your API
-        // const response = await api.get(`/patients/${id}`);
-        // setPatient(response.data);
 
-        // Using mock data
-        setTimeout(() => {
-          setPatient(mockPatient);
-          setLoading(false);
-        }, 1000);
+        // In a real app, you would fetch patient data from your API
+        // For now, use the mock patient data with ID substituted
+        const patientData = { ...mockPatient, id };
+
+        // Fetch appointments from mockApi
+        const appointmentsResponse = await mockApi.getAppointments({
+          patient: id,
+        });
+        console.log("Fetched appointments:", appointmentsResponse);
+
+        // Format the appointments for display
+        const formattedAppointments = appointmentsResponse.map(
+          (appointment) => ({
+            id: appointment._id,
+            date: appointment.appointmentDate,
+            time: appointment.startTime,
+            reason: appointment.reason || "Consultation",
+            doctor: appointment.doctor?.name || "Unknown Doctor",
+            department: "General Medicine", // You may fetch department details if needed
+            status: appointment.status,
+          })
+        );
+
+        setPatient(patientData);
+        setAppointments(formattedAppointments);
+        setLoading(false);
       } catch (error) {
-        console.error("Error fetching patient details:", error);
+        console.error("Error fetching data:", error);
         setLoading(false);
       }
     };
 
-    fetchPatient();
+    fetchData();
   }, [id]);
 
   const calculateAge = (birthDate) => {
@@ -537,12 +533,24 @@ const PatientDetails = () => {
             </PatientBasicDetails>
 
             <Button
-              style={{ width: "100%" }}
+              style={{ width: "100%", marginBottom: "10px" }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               <FaCalendarPlus /> Schedule Appointment
             </Button>
+
+            {user?.role === "doctor" && (
+              <Button
+                style={{ width: "100%" }}
+                variant="secondary"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowLabTestModal(true)}
+              >
+                <FaFlask /> Request Lab Test
+              </Button>
+            )}
 
             <Divider />
 
@@ -643,8 +651,13 @@ const PatientDetails = () => {
                 <FaCalendarPlus /> Upcoming Appointments
               </SectionTitle>
               <AppointmentList>
-                {patient.appointments
-                  .filter((app) => app.status === "scheduled")
+                {appointments
+                  .filter(
+                    (app) =>
+                      app.status === "scheduled" ||
+                      app.status === "pending" ||
+                      app.status === "confirmed"
+                  )
                   .map((appointment) => (
                     <AppointmentItem key={appointment.id}>
                       <AppointmentDate>
@@ -669,8 +682,11 @@ const PatientDetails = () => {
                       </AppointmentStatus>
                     </AppointmentItem>
                   ))}
-                {patient.appointments.filter(
-                  (app) => app.status === "scheduled"
+                {appointments.filter(
+                  (app) =>
+                    app.status === "scheduled" ||
+                    app.status === "pending" ||
+                    app.status === "confirmed"
                 ).length === 0 && <p>No upcoming appointments</p>}
               </AppointmentList>
             </MedicalInfoCard>
@@ -680,8 +696,11 @@ const PatientDetails = () => {
                 <FaCalendarPlus /> Past Appointments
               </SectionTitle>
               <AppointmentList>
-                {patient.appointments
-                  .filter((app) => app.status !== "scheduled")
+                {appointments
+                  .filter(
+                    (app) =>
+                      app.status === "completed" || app.status === "cancelled"
+                  )
                   .map((appointment) => (
                     <AppointmentItem key={appointment.id}>
                       <AppointmentDate>
@@ -706,6 +725,10 @@ const PatientDetails = () => {
                       </AppointmentStatus>
                     </AppointmentItem>
                   ))}
+                {appointments.filter(
+                  (app) =>
+                    app.status === "completed" || app.status === "cancelled"
+                ).length === 0 && <p>No past appointments</p>}
               </AppointmentList>
             </MedicalInfoCard>
           </TabPanel>
@@ -794,6 +817,13 @@ const PatientDetails = () => {
           </TabPanel>
         </motion.div>
       </ContentContainer>
+
+      {/* RequestLabTest Modal */}
+      <RequestLabTest
+        isOpen={showLabTestModal}
+        onClose={() => setShowLabTestModal(false)}
+        patient={patient}
+      />
     </PageTransition>
   );
 };

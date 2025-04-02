@@ -21,10 +21,22 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(
   cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? "https://yourdomain.com"
-        : ["http://localhost:5173", "http://127.0.0.1:5173"],
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      // Check if the origin is a localhost domain or the production domain
+      if (
+        origin.startsWith("http://localhost:") ||
+        origin.startsWith("http://127.0.0.1:") ||
+        (process.env.NODE_ENV === "production" &&
+          origin === "https://yourdomain.com")
+      ) {
+        return callback(null, true);
+      }
+
+      callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   })
 );

@@ -10,6 +10,13 @@ import {
   FaArrowRight,
   FaEye,
   FaCalendarPlus,
+  FaFlask,
+  FaCheck,
+  FaClock,
+  FaPrescriptionBottleAlt,
+  FaHospital,
+  FaUserMd,
+  FaRegClock,
 } from "react-icons/fa";
 import Card from "../components/ui/Card";
 import { Line, Doughnut } from "react-chartjs-2";
@@ -25,6 +32,11 @@ import {
   ArcElement,
 } from "chart.js";
 import AnimationContainer from "../components/animations/AnimationContainer";
+import { useAuth } from "../context/AuthContext";
+import mockAuthService from "../services/mockApi";
+import PatientDashboard from "./patient/PatientDashboard";
+import AdminDashboard from "./admin/Dashboard";
+import LabTechnicianDashboard from "./lab/LabTechnicianDashboard";
 
 // Register ChartJS components
 ChartJS.register(
@@ -262,8 +274,65 @@ const AppointmentStatus = styled.div`
   }};
 `;
 
+// Patient-specific styled components
+const MedicationList = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const MedicationItem = styled.div`
+  display: flex;
+  align-items: center;
+  padding: ${(props) => props.theme.spacing(2)};
+  border-bottom: 1px solid ${(props) => props.theme.colors.border.main};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const MedicationIcon = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #f0f7ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: ${(props) => props.theme.spacing(2)};
+  color: #3182ce;
+`;
+
+const MedicationInfo = styled.div`
+  flex: 1;
+`;
+
+const MedicationName = styled.div`
+  font-weight: 500;
+  color: ${(props) => props.theme.colors.text.primary};
+`;
+
+const MedicationDetails = styled.div`
+  font-size: 0.75rem;
+  color: ${(props) => props.theme.colors.text.secondary};
+`;
+
+const Badge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  background-color: ${(props) =>
+    props.color || props.theme.colors.primary.main + "20"};
+  color: ${(props) => props.textColor || props.theme.colors.primary.main};
+  margin-left: 0.5rem;
+`;
+
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
+  const { user, isPatient, isDoctor, isAdmin, isLabTechnician } = useAuth();
 
   // Mock data - in a real app, this would come from API calls
   const stats = [
@@ -387,92 +456,21 @@ const Dashboard = () => {
     return <AnimationContainer type="loading" height="400px" />;
   }
 
-  return (
-    <div>
-      <StatsGrid>
-        {stats.map((stat, index) => (
-          <StatCard
-            key={index}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.1 }}
-          >
-            <StatIcon color={stat.color}>{stat.icon}</StatIcon>
-            <StatContent>
-              <StatValue>{stat.value}</StatValue>
-              <StatLabel>{stat.label}</StatLabel>
-            </StatContent>
-          </StatCard>
-        ))}
-      </StatsGrid>
+  // Render appropriate dashboard based on user role
+  if (isPatient()) {
+    return <PatientDashboard />;
+  }
 
-      <SectionHeader>
-        <SectionTitle>Recent Patients</SectionTitle>
-        <ViewAllLink to="/dashboard/patients">
-          View All <FaArrowRight size={12} />
-        </ViewAllLink>
-      </SectionHeader>
+  if (isAdmin()) {
+    return <AdminDashboard />;
+  }
 
-      <Card>
-        <PatientsList>
-          {recentPatients.map((patient) => (
-            <PatientItem key={patient.id}>
-              <PatientAvatar>{patient.name.charAt(0)}</PatientAvatar>
-              <PatientInfo>
-                <PatientName>{patient.name}</PatientName>
-                <PatientDetails>
-                  {patient.age} years | {patient.gender} | {patient.condition}
-                </PatientDetails>
-                <PatientDetails>
-                  Last Visit: {formatDate(patient.lastVisit)}
-                </PatientDetails>
-              </PatientInfo>
-              <PatientActions>
-                <ActionButton to={`/dashboard/patients/${patient.id}`}>
-                  <FaEye /> View
-                </ActionButton>
-                <ActionButton to={`/dashboard/book-appointment/${patient.id}`}>
-                  <FaCalendarPlus /> Schedule
-                </ActionButton>
-              </PatientActions>
-            </PatientItem>
-          ))}
-        </PatientsList>
-      </Card>
+  if (isLabTechnician()) {
+    return <LabTechnicianDashboard />;
+  }
 
-      <SectionHeader>
-        <SectionTitle>Upcoming Appointments</SectionTitle>
-        <ViewAllLink to="/dashboard/appointments">
-          View All <FaArrowRight size={12} />
-        </ViewAllLink>
-      </SectionHeader>
-
-      <Card>
-        <AppointmentsList>
-          {upcomingAppointments.map((appointment) => (
-            <AppointmentItem key={appointment.id}>
-              <AppointmentTime>
-                <AppointmentDate>
-                  {formatDate(appointment.date)}
-                </AppointmentDate>
-                <AppointmentHour>{appointment.time}</AppointmentHour>
-              </AppointmentTime>
-              <AppointmentInfo>
-                <AppointmentTitle>{appointment.purpose}</AppointmentTitle>
-                <AppointmentPatient>
-                  Patient: {appointment.patientName}
-                </AppointmentPatient>
-              </AppointmentInfo>
-              <AppointmentStatus status={appointment.status}>
-                {appointment.status.charAt(0).toUpperCase() +
-                  appointment.status.slice(1)}
-              </AppointmentStatus>
-            </AppointmentItem>
-          ))}
-        </AppointmentsList>
-      </Card>
-    </div>
-  );
+  // Default - Doctor or any other role gets the Doctor dashboard
+  return <div>Doctor Dashboard will be implemented here</div>;
 };
 
 export default Dashboard;

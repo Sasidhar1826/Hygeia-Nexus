@@ -268,6 +268,16 @@ const ErrorMessage = styled.div`
   color: ${(props) => props.theme.colors.status.error};
 `;
 
+const SuccessMessage = styled.div`
+  text-align: center;
+  padding: ${(props) => props.theme.spacing(4)};
+  color: ${(props) => props.theme.colors.status.success};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${(props) => props.theme.spacing(2)};
+`;
+
 const appointmentTypes = [
   { name: "In-Person", color: "#4A90E2" },
   { name: "Video Call", color: "#9C27B0" },
@@ -291,6 +301,9 @@ const Appointments = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     fetchAppointments();
@@ -323,27 +336,80 @@ const Appointments = () => {
 
       // Use mockApi instead of direct API call
       const response = await mockApi.getAppointments(queryParams);
+      console.log("Retrieved appointments:", response);
 
       // Transform appointments for calendar
-      const formattedAppointments = response.map((appointment) => ({
-        id: appointment._id,
-        title:
-          user.role === "patient"
-            ? `Dr. ${appointment.doctor?.name || "Unknown"} - ${
-                appointment.reason || "Consultation"
-              }`
-            : `${appointment.patient?.name || "Unknown"} - ${
-                appointment.reason || "Consultation"
-              }`,
-        start: new Date(
-          appointment.appointmentDate + "T" + appointment.startTime
-        ),
-        end: new Date(appointment.appointmentDate + "T" + appointment.endTime),
-        type: appointment.type || "in-person",
-        status: appointment.status || "pending",
-        resource: appointment,
-      }));
+      const formattedAppointments = response.map((appointment) => {
+        // Parse date and time correctly
+        let startDateTime, endDateTime;
 
+        try {
+          const datePart = appointment.appointmentDate;
+          // Handle different time formats
+          const startTimePart = appointment.startTime;
+          const endTimePart = appointment.endTime;
+
+          // Create date objects
+          if (startTimePart.includes("AM") || startTimePart.includes("PM")) {
+            // 12-hour format with AM/PM
+            startDateTime = moment(
+              `${datePart} ${startTimePart}`,
+              "YYYY-MM-DD hh:mm A"
+            ).toDate();
+            endDateTime = moment(
+              `${datePart} ${endTimePart}`,
+              "YYYY-MM-DD hh:mm A"
+            ).toDate();
+          } else {
+            // 24-hour format
+            startDateTime = moment(
+              `${datePart} ${startTimePart}`,
+              "YYYY-MM-DD HH:mm"
+            ).toDate();
+            endDateTime = moment(
+              `${datePart} ${endTimePart}`,
+              "YYYY-MM-DD HH:mm"
+            ).toDate();
+          }
+        } catch (err) {
+          console.error("Error parsing date/time:", err, appointment);
+          // Fallback to a default date if parsing fails
+          startDateTime = new Date();
+          endDateTime = new Date();
+          endDateTime.setHours(endDateTime.getHours() + 1);
+        }
+
+        console.log("Parsed appointment:", {
+          id: appointment._id,
+          date: appointment.appointmentDate,
+          startTime: appointment.startTime,
+          endTime: appointment.endTime,
+          parsedStart: startDateTime,
+          parsedEnd: endDateTime,
+        });
+
+        return {
+          id: appointment._id,
+          title:
+            user.role === "patient"
+              ? `Dr. ${appointment.doctor?.name || "Unknown"} - ${
+                  appointment.reason || "Consultation"
+                }`
+              : `${appointment.patient?.name || "Unknown"} - ${
+                  appointment.reason || "Consultation"
+                }`,
+          start: startDateTime,
+          end: endDateTime,
+          type: appointment.type || "in-person",
+          status: appointment.status || "pending",
+          resource: appointment,
+        };
+      });
+
+      console.log(
+        "Formatted appointments for calendar:",
+        formattedAppointments
+      );
       setAppointments(formattedAppointments);
       setLoading(false);
     } catch (error) {
@@ -371,73 +437,115 @@ const Appointments = () => {
 
   const handleCancelAppointment = async () => {
     try {
-      // In a real app, we would update the appointment's status via API
-      // For now, we'll use a simulated approach with the mock data
-      const updatedAppointment = {
-        ...selectedAppointment,
-        status: "cancelled",
-      };
+      setIsSubmitting(true);
 
-      // Find and update the appointment in the local array
+      // Use mockApi to update the appointment
+      const updatedAppointment = await mockApi.updateAppointment(
+        selectedAppointment._id,
+        {
+          ...selectedAppointment,
+          status: "cancelled",
+        }
+      );
+
+      // Update the local state to reflect the change
       const updatedAppointments = appointments.map((app) =>
         app.id === selectedAppointment._id
-          ? { ...app, status: "cancelled", resource: updatedAppointment }
+          ? {
+              ...app,
+              status: "cancelled",
+              resource: updatedAppointment,
+            }
           : app
       );
 
       setAppointments(updatedAppointments);
+      setIsSubmitting(false);
       handleCloseModal();
+
+      // Show success message
+      setSuccessMessage("Appointment cancelled successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
       console.error("Error cancelling appointment:", error);
-      // Show error message
+      setErrorMessage("Failed to cancel appointment. Please try again.");
+      setIsSubmitting(false);
     }
   };
 
   const handleConfirmAppointment = async () => {
     try {
-      // In a real app, we would update the appointment's status via API
-      // For now, we'll use a simulated approach with the mock data
-      const updatedAppointment = {
-        ...selectedAppointment,
-        status: "confirmed",
-      };
+      setIsSubmitting(true);
 
-      // Find and update the appointment in the local array
+      // Use mockApi to update the appointment
+      const updatedAppointment = await mockApi.updateAppointment(
+        selectedAppointment._id,
+        {
+          ...selectedAppointment,
+          status: "confirmed",
+        }
+      );
+
+      // Update the local state to reflect the change
       const updatedAppointments = appointments.map((app) =>
         app.id === selectedAppointment._id
-          ? { ...app, status: "confirmed", resource: updatedAppointment }
+          ? {
+              ...app,
+              status: "confirmed",
+              resource: updatedAppointment,
+            }
           : app
       );
 
       setAppointments(updatedAppointments);
+      setIsSubmitting(false);
       handleCloseModal();
+
+      // Show success message
+      setSuccessMessage("Appointment confirmed successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
       console.error("Error confirming appointment:", error);
-      // Show error message
+      setErrorMessage("Failed to confirm appointment. Please try again.");
+      setIsSubmitting(false);
     }
   };
 
   const handleCompleteAppointment = async () => {
     try {
-      // In a real app, we would update the appointment's status via API
-      // For now, we'll use a simulated approach with the mock data
-      const updatedAppointment = {
-        ...selectedAppointment,
-        status: "completed",
-      };
+      setIsSubmitting(true);
 
-      // Find and update the appointment in the local array
+      // Use mockApi to update the appointment
+      const updatedAppointment = await mockApi.updateAppointment(
+        selectedAppointment._id,
+        {
+          ...selectedAppointment,
+          status: "completed",
+        }
+      );
+
+      // Update the local state to reflect the change
       const updatedAppointments = appointments.map((app) =>
         app.id === selectedAppointment._id
-          ? { ...app, status: "completed", resource: updatedAppointment }
+          ? {
+              ...app,
+              status: "completed",
+              resource: updatedAppointment,
+            }
           : app
       );
 
       setAppointments(updatedAppointments);
+      setIsSubmitting(false);
       handleCloseModal();
+
+      // Show success message
+      setSuccessMessage("Appointment marked as completed");
+      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
       console.error("Error completing appointment:", error);
-      // Show error message
+      setErrorMessage("Failed to complete appointment. Please try again.");
+      setIsSubmitting(false);
     }
   };
 
@@ -452,11 +560,23 @@ const Appointments = () => {
       backgroundColor = "#4A90E2"; // Blue for in-person
     }
 
-    // Adjust opacity based on status
+    // Adjust colors based on status
     if (event.status === "cancelled") {
       opacity = 0.5;
     } else if (event.status === "completed") {
       opacity = 0.7;
+    } else if (event.status === "pending") {
+      backgroundColor = "#F9A825"; // Yellow/orange for pending
+    } else if (event.status === "confirmed") {
+      // Keep default color but add a border
+      return {
+        style: {
+          backgroundColor,
+          opacity,
+          borderLeft: "4px solid #43A047",
+          borderRadius: "4px",
+        },
+      };
     }
 
     return {
@@ -479,11 +599,27 @@ const Appointments = () => {
     <PageContainer>
       <TopBar>
         <h2>Appointment Calendar</h2>
-        <Button variant="primary" to="/departments">
-          <FaPlus />
-          Book New Appointment
-        </Button>
+        {user.role === "patient" && (
+          <Button variant="primary" to="/dashboard/doctors">
+            <FaPlus />
+            Book New Appointment
+          </Button>
+        )}
       </TopBar>
+
+      {successMessage && (
+        <SuccessMessage>
+          <FaCheckCircle />
+          {successMessage}
+        </SuccessMessage>
+      )}
+
+      {errorMessage && (
+        <ErrorMessage>
+          <FaInfoCircle />
+          {errorMessage}
+        </ErrorMessage>
+      )}
 
       <FiltersContainer>
         <FilterSelect
@@ -538,6 +674,19 @@ const Appointments = () => {
             <span>{type.name}</span>
           </AppointmentType>
         ))}
+        <AppointmentType>
+          <ColorIndicator color="#F9A825" />
+          <span>Pending</span>
+        </AppointmentType>
+        <AppointmentType>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <ColorIndicator
+              color="#4A90E2"
+              style={{ borderLeft: "4px solid #43A047" }}
+            />
+            <span>Confirmed</span>
+          </div>
+        </AppointmentType>
       </AppointmentTypeContainer>
 
       <CalendarContainer
@@ -709,7 +858,7 @@ const Appointments = () => {
                   <ActionButton
                     variant="primary"
                     onClick={handleConfirmAppointment}
-                    disabled={user.role === "patient"}
+                    disabled={user.role !== "doctor" && user.role !== "admin"}
                   >
                     <FaCheckCircle />
                     Confirm
@@ -717,6 +866,11 @@ const Appointments = () => {
                   <ActionButton
                     variant="danger"
                     onClick={handleCancelAppointment}
+                    disabled={
+                      user.role !== "doctor" &&
+                      user.role !== "admin" &&
+                      user.role !== "patient"
+                    }
                   >
                     <FaTimesCircle />
                     Cancel
@@ -729,7 +883,7 @@ const Appointments = () => {
                   <ActionButton
                     variant="primary"
                     onClick={handleCompleteAppointment}
-                    disabled={user.role === "patient"}
+                    disabled={user.role !== "doctor" && user.role !== "admin"}
                   >
                     <FaCheckCircle />
                     Mark as Completed
@@ -737,6 +891,11 @@ const Appointments = () => {
                   <ActionButton
                     variant="danger"
                     onClick={handleCancelAppointment}
+                    disabled={
+                      user.role !== "doctor" &&
+                      user.role !== "admin" &&
+                      user.role !== "patient"
+                    }
                   >
                     <FaTimesCircle />
                     Cancel
