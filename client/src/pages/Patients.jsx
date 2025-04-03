@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import AnimationContainer from "../components/animations/AnimationContainer";
 import PageTransition from "../components/animations/PageTransition";
 import { childVariants } from "../components/animations/PageTransition";
+import mockApi from "../services/mockApi";
 
 const PageHeader = styled.div`
   display: flex;
@@ -149,97 +150,74 @@ const EmptyStateText = styled.p`
   font-size: 1rem;
 `;
 
-// Sample data - In a real app, you would fetch this from the API
-const mockPatients = [
-  {
-    id: "1",
-    firstName: "John",
-    lastName: "Doe",
-    gender: "Male",
-    age: 45,
-    contactNumber: "+1 (555) 123-4567",
-    email: "john.doe@example.com",
-    address: {
-      city: "New York",
-      state: "NY",
-    },
-    bloodGroup: "A+",
-    lastVisit: "2023-12-15",
-  },
-  {
-    id: "2",
-    firstName: "Jane",
-    lastName: "Smith",
-    gender: "Female",
-    age: 32,
-    contactNumber: "+1 (555) 987-6543",
-    email: "jane.smith@example.com",
-    address: {
-      city: "Los Angeles",
-      state: "CA",
-    },
-    bloodGroup: "O-",
-    lastVisit: "2024-01-20",
-  },
-  {
-    id: "3",
-    firstName: "Robert",
-    lastName: "Johnson",
-    gender: "Male",
-    age: 58,
-    contactNumber: "+1 (555) 456-7890",
-    email: "robert.johnson@example.com",
-    address: {
-      city: "Chicago",
-      state: "IL",
-    },
-    bloodGroup: "B+",
-    lastVisit: "2023-11-05",
-  },
-  {
-    id: "4",
-    firstName: "Maria",
-    lastName: "Garcia",
-    gender: "Female",
-    age: 27,
-    contactNumber: "+1 (555) 789-0123",
-    email: "maria.garcia@example.com",
-    address: {
-      city: "Miami",
-      state: "FL",
-    },
-    bloodGroup: "AB+",
-    lastVisit: "2024-02-10",
-  },
-];
-
 const Patients = () => {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    // Simulate API call
+    // Fetch patients from mockApi
     const fetchPatients = async () => {
       try {
         setLoading(true);
-        // In a real app, you would fetch data from your API
-        // const response = await api.get('/patients');
-        // setPatients(response.data);
+        // Fetch real patient data from mockApi
+        const response = await mockApi.getPatients();
+        console.log("Fetched patients from API:", response);
 
-        // Using mock data
-        setTimeout(() => {
-          setPatients(mockPatients);
-          setLoading(false);
-        }, 1000);
+        // Format patients data to match the expected structure
+        const formattedPatients = response.map((patient) => ({
+          id: patient._id,
+          firstName: patient.firstName || patient.name.split(" ")[0],
+          lastName:
+            patient.lastName || patient.name.split(" ").slice(1).join(" "),
+          gender: patient.gender || "Not specified",
+          age: patient.age || calculateAge(patient.dateOfBirth) || 30,
+          contactNumber: patient.contactNumber || "Not provided",
+          email: patient.email || "Not provided",
+          address: {
+            city:
+              typeof patient.address === "string"
+                ? patient.address.split(",")[1]?.trim() || "Unknown"
+                : "Unknown",
+            state:
+              typeof patient.address === "string"
+                ? patient.address.split(",")[2]?.trim() || "Unknown"
+                : "Unknown",
+          },
+          bloodGroup: patient.bloodGroup || "Not specified",
+          lastVisit: patient.lastVisit || "2024-01-01",
+        }));
+
+        setPatients(formattedPatients);
+        setLoading(false);
       } catch (error) {
         console.error("Error fetching patients:", error);
         setLoading(false);
+        // Show error message to user
+        alert("Failed to load patients data. Please try again later.");
       }
     };
 
     fetchPatients();
   }, []);
+
+  // Helper function to calculate age from birth date
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    const birthDateObj = new Date(birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birthDateObj.getFullYear();
+    const monthDifference = today.getMonth() - birthDateObj.getMonth();
+
+    if (
+      monthDifference < 0 ||
+      (monthDifference === 0 && today.getDate() < birthDateObj.getDate())
+    ) {
+      age--;
+    }
+
+    return age;
+  };
 
   const filteredPatients = patients.filter(
     (patient) =>

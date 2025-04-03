@@ -306,8 +306,67 @@ const Layout = ({ children, title = "Dashboard" }) => {
         <SidebarHeader isCollapsed={isCollapsed}>
           {!isCollapsed && (
             <Logo>
-              <FaHospital />
-              HMS
+              <svg
+                width="50"
+                height="50"
+                viewBox="0 0 200 200"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+              >
+                <g
+                  style={{
+                    animation:
+                      "pulse 1.5s infinite ease-in-out, colorPulse 1.5s infinite ease-in-out",
+                    filter: "drop-shadow(0px 0px 10px rgba(231, 76, 60, 0.8))",
+                  }}
+                >
+                  <path
+                    d="M100 170s-40-30-60-60c-15-25 5-60 40-60 15 0 30 10 30 20 0-10 15-20 30-20 35 0 55 35 40 60-20 30-60 60-60 60z"
+                    stroke="#D35400"
+                    strokeWidth="5"
+                  />
+                </g>
+
+                <polyline
+                  points="30,120 50,100 65,130 85,90 110,130 130,100 170,120"
+                  stroke="#FFFFFF"
+                  strokeWidth="5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    strokeDasharray: "200",
+                    strokeDashoffset: "200",
+                    animation: "drawStroke 2s infinite linear",
+                  }}
+                />
+
+                {/* Add global styles */}
+                <style>
+                  {`
+          @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+
+          @keyframes colorPulse {
+            0% { fill: #E74C3C; }
+            50% { fill: #FF6B6B; }
+            100% { fill: #E74C3C; }
+          }
+
+          @keyframes drawStroke {
+            0% { stroke-dasharray: 0, 200; }
+            50% { stroke-dasharray: 100, 200; }
+            100% { stroke-dasharray: 200, 200; }
+          }
+        `}
+                </style>
+              </svg>
+              <span style={{ fontSize: "1rem", marginLeft: "5px" }}>
+                Hygiea Nexus
+              </span>
             </Logo>
           )}
           <CollapseButton onClick={() => setIsCollapsed(!isCollapsed)}>

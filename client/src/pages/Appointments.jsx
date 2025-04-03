@@ -17,6 +17,8 @@ import {
   FaTimesCircle,
   FaFilter,
   FaMoneyBillWave,
+  FaFlask,
+  FaVial,
 } from "react-icons/fa";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -278,13 +280,91 @@ const SuccessMessage = styled.div`
   gap: ${(props) => props.theme.spacing(2)};
 `;
 
+const LabOrdersSection = styled.div`
+  margin-top: ${(props) => props.theme.spacing(4)};
+`;
+
+const LabOrdersList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing(2)};
+`;
+
+const LabOrderCard = styled.div`
+  background-color: ${(props) => props.theme.colors.background.paper};
+  border-radius: ${(props) => props.theme.borderRadius.medium};
+  box-shadow: ${(props) => props.theme.shadows.small};
+  padding: ${(props) => props.theme.spacing(2)};
+  display: flex;
+  align-items: center;
+  gap: ${(props) => props.theme.spacing(2)};
+`;
+
+const LabOrderIcon = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: ${(props) => props.theme.colors.primary.light};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${(props) => props.theme.colors.primary.main};
+`;
+
+const LabOrderInfo = styled.div`
+  flex: 1;
+`;
+
+const LabOrderTitle = styled.h3`
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  margin-bottom: 4px;
+`;
+
+const LabOrderStatus = styled.span`
+  font-size: 0.85rem;
+  padding: ${(props) => props.theme.spacing(0.5)}
+    ${(props) => props.theme.spacing(1)};
+  border-radius: ${(props) => props.theme.borderRadius.small};
+  background-color: ${(props) => {
+    switch (props.status) {
+      case "pending":
+        return props.theme.colors.status.warning + "20";
+      case "in_progress":
+        return props.theme.colors.primary.main + "20";
+      case "completed":
+        return props.theme.colors.status.success + "20";
+      default:
+        return props.theme.colors.status.info + "20";
+    }
+  }};
+  color: ${(props) => {
+    switch (props.status) {
+      case "pending":
+        return props.theme.colors.status.warning;
+      case "in_progress":
+        return props.theme.colors.primary.main;
+      case "completed":
+        return props.theme.colors.status.success;
+      default:
+        return props.theme.colors.status.info;
+    }
+  }};
+`;
+
+const LabOrderDetails = styled.div`
+  font-size: 0.85rem;
+  color: ${(props) => props.theme.colors.text.secondary};
+`;
+
 const appointmentTypes = [
   { name: "In-Person", color: "#4A90E2" },
   { name: "Video Call", color: "#9C27B0" },
 ];
 
 const statusOptions = [
-  { value: "all", label: "All Statuses" },
+  { value: "all", label: "All Status" },
   { value: "pending", label: "Pending" },
   { value: "confirmed", label: "Confirmed" },
   { value: "cancelled", label: "Cancelled" },
@@ -304,10 +384,41 @@ const Appointments = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [labOrders, setLabOrders] = useState([]);
 
   useEffect(() => {
     fetchAppointments();
   }, [user, statusFilter, typeFilter, dateFilter]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        fetchAppointments();
+
+        // Fetch lab orders if user is a patient
+        if (user && user.role === "patient") {
+          try {
+            const labOrdersResponse = await mockApi.getLabOrders({
+              patient: user._id,
+            });
+            console.log("Fetched lab orders:", labOrdersResponse);
+            setLabOrders(labOrdersResponse);
+          } catch (error) {
+            console.error("Error fetching lab orders:", error);
+            setLabOrders([]);
+          }
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error:", error);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
 
   const fetchAppointments = async () => {
     try {
@@ -912,6 +1023,42 @@ const Appointments = () => {
             </ActionButtonsContainer>
           </ModalContent>
         </AppointmentDetailsModal>
+      )}
+
+      {/* Lab Orders Section */}
+      {user && user.role === "patient" && (
+        <LabOrdersSection>
+          <h2>
+            <FaFlask style={{ marginRight: "8px" }} />
+            Lab Tests
+          </h2>
+
+          {labOrders.length > 0 ? (
+            <LabOrdersList>
+              {labOrders.map((order) => (
+                <LabOrderCard key={order._id}>
+                  <LabOrderIcon>
+                    <FaVial />
+                  </LabOrderIcon>
+                  <LabOrderInfo>
+                    <LabOrderTitle>{order.testType}</LabOrderTitle>
+                    <LabOrderDetails>
+                      Requested by: {order.doctor?.name || "Unknown Doctor"} |
+                      {new Date(order.requestedDate).toLocaleDateString()}
+                    </LabOrderDetails>
+                  </LabOrderInfo>
+                  <LabOrderStatus status={order.status}>
+                    {order.status === "pending" && "Pending"}
+                    {order.status === "in_progress" && "In Progress"}
+                    {order.status === "completed" && "Completed"}
+                  </LabOrderStatus>
+                </LabOrderCard>
+              ))}
+            </LabOrdersList>
+          ) : (
+            <p>No lab tests have been ordered for you.</p>
+          )}
+        </LabOrdersSection>
       )}
     </PageContainer>
   );

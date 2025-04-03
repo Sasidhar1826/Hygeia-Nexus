@@ -165,8 +165,8 @@ const mockUsers = [
 const mockAppointments = [
   {
     _id: "1",
-    patient: "3",
-    doctor: "2",
+    patient: "3", // John Smith (patient)
+    doctor: "2", // Dr. Sarah Johnson
     department: "1",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() + 3))
       .toISOString()
@@ -180,8 +180,8 @@ const mockAppointments = [
   },
   {
     _id: "2",
-    patient: "3",
-    doctor: "2",
+    patient: "3", // John Smith (patient)
+    doctor: "2", // Dr. Sarah Johnson
     department: "1",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() - 5))
       .toISOString()
@@ -198,8 +198,8 @@ const mockAppointments = [
   },
   {
     _id: "3",
-    patient: "1",
-    doctor: "2",
+    patient: "5", // Changed from 1 to 5 (Emily Parker - patient)
+    doctor: "2", // Dr. Sarah Johnson
     department: "1",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() + 5))
       .toISOString()
@@ -213,8 +213,8 @@ const mockAppointments = [
   },
   {
     _id: "4",
-    patient: "1",
-    doctor: "8",
+    patient: "5", // Changed from 1 to 5 (Emily Parker - patient)
+    doctor: "8", // Dr. Robert Chen
     department: "2",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() + 10))
       .toISOString()
@@ -228,8 +228,8 @@ const mockAppointments = [
   },
   {
     _id: "5",
-    patient: "1",
-    doctor: "10",
+    patient: "6", // Changed from 1 to 6 (David Wilson - patient)
+    doctor: "10", // Dr. James Wilson
     department: "4",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() - 7))
       .toISOString()
@@ -245,8 +245,8 @@ const mockAppointments = [
   },
   {
     _id: "6",
-    patient: "1",
-    doctor: "9",
+    patient: "6", // Changed from 1 to 6 (David Wilson - patient)
+    doctor: "9", // Dr. Maria Lopez
     department: "3",
     appointmentDate: new Date(new Date().setDate(new Date().getDate() - 2))
       .toISOString()
@@ -389,6 +389,42 @@ const mockDepartments = [
 // Helper function to simulate API delay
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Helper function to find a user by email or ID
+const findUserByEmailOrId = (emailOrId) => {
+  return mockUsers.find((u) => u.email === emailOrId || u._id === emailOrId);
+};
+
+// Debug helper to dump detailed information about appointments
+const dumpAppointmentsDebug = () => {
+  console.log("--------- APPOINTMENTS DEBUG INFO ---------");
+  console.log("Total appointments:", mockAppointments.length);
+
+  const userMap = {};
+  mockUsers.forEach((user) => {
+    userMap[user._id] = {
+      name: user.name,
+      role: user.role,
+      email: user.email,
+    };
+  });
+
+  console.log("Available users:");
+  console.log(userMap);
+
+  mockAppointments.forEach((apt, index) => {
+    console.log(`Appointment #${index + 1} (${apt._id}):`);
+    console.log(
+      `  Patient: ${apt.patient} (${userMap[apt.patient]?.name || "Unknown"})`
+    );
+    console.log(
+      `  Doctor: ${apt.doctor} (${userMap[apt.doctor]?.name || "Unknown"})`
+    );
+    console.log(`  Status: ${apt.status}`);
+    console.log(`  Date: ${apt.appointmentDate}`);
+  });
+  console.log("------------------------------------------");
+};
+
 // Helper function to filter users by role
 const getUsersByRole = (role) => {
   try {
@@ -421,14 +457,28 @@ export const mockAuthService = {
       ? mockUsers.filter((u) => u.role === role)
       : mockUsers;
 
+    console.log(`Login attempt with ${email}, role: ${role || "any"}`);
+    console.log(
+      `Available users for this role:`,
+      filteredUsers.map((u) => ({
+        email: u.email,
+        role: u.role,
+        _id: u._id,
+      }))
+    );
+
     const user = filteredUsers.find(
       (u) => u.email === email && u.password === password
     );
 
     if (!user) {
+      console.log(`Login failed: No matching user found for ${email}`);
       throw { response: { data: { message: "Invalid email or password" } } };
     }
 
+    console.log(
+      `Login successful for user: ${user.name} (${user._id}), role: ${user.role}`
+    );
     const { password: _, ...userWithoutPassword } = user;
 
     return {
@@ -512,25 +562,135 @@ const mockApi = {
   // Also include auth methods for compatibility
   ...mockAuthService,
 
+  // Generic user update function
+  updateUser: async (id, userData) => {
+    await delay(600);
+
+    // First look for user by ID
+    let userIndex = mockUsers.findIndex((u) => u._id === id);
+
+    // If not found, try to find by email
+    if (userIndex === -1 && userData.email) {
+      userIndex = mockUsers.findIndex((u) => u.email === userData.email);
+    }
+
+    if (userIndex === -1) {
+      console.log(
+        `User with ID ${id} not found in mock data. Using local update only.`
+      );
+      // If the user doesn't exist in the mock data, just return the updated data as provided
+      // This allows updates to work even when IDs don't match between localStorage and mock data
+      return {
+        _id: id,
+        ...userData,
+      };
+    }
+
+    // Get the user's role to call the appropriate update function
+    const userRole = mockUsers[userIndex].role;
+
+    if (userRole === "patient") {
+      return mockApi.updatePatient(mockUsers[userIndex]._id, userData);
+    } else if (userRole === "doctor") {
+      return mockApi.updateDoctor(mockUsers[userIndex]._id, userData);
+    } else if (userRole === "labtechnician") {
+      return mockApi.updateLabTechnician(mockUsers[userIndex]._id, userData);
+    } else {
+      // For other roles like admin
+      mockUsers[userIndex] = {
+        ...mockUsers[userIndex],
+        ...userData,
+        name: userData.name || mockUsers[userIndex].name,
+      };
+
+      const { password, ...updatedUser } = mockUsers[userIndex];
+      return updatedUser;
+    }
+  },
+
   // Appointments
   getAppointments: async (filters = {}) => {
     await delay(500);
+
+    console.log("getAppointments called with filters:", filters);
+    dumpAppointmentsDebug();
 
     let filteredAppointments = [...mockAppointments];
     console.log("All appointments:", mockAppointments);
     console.log("Filters applied:", filters);
 
-    // Apply filters
+    // If the patient ID doesn't match any in our mock data, return sample appointments
+    if (filters.patient && !mockUsers.some((u) => u._id === filters.patient)) {
+      console.log(
+        `Patient ID ${filters.patient} not found in mock data. Returning sample appointments.`
+      );
+
+      // Create sample appointments for the given patient ID
+      const sampleAppointments = [
+        {
+          _id: "sample1",
+          patient: { _id: filters.patient, name: "Current User" },
+          doctor: {
+            _id: "2",
+            name: "Dr. Sarah Johnson",
+            specialization: "Cardiology",
+          },
+          department: { _id: "1", name: "Cardiology" },
+          appointmentDate: new Date(
+            new Date().setDate(new Date().getDate() + 3)
+          )
+            .toISOString()
+            .split("T")[0],
+          startTime: "10:00 AM",
+          endTime: "10:30 AM",
+          reason: "Annual Checkup",
+          status: "confirmed",
+        },
+        {
+          _id: "sample2",
+          patient: { _id: filters.patient, name: "Current User" },
+          doctor: {
+            _id: "8",
+            name: "Dr. Robert Chen",
+            specialization: "Neurology",
+          },
+          department: { _id: "2", name: "Neurology" },
+          appointmentDate: new Date(
+            new Date().setDate(new Date().getDate() - 5)
+          )
+            .toISOString()
+            .split("T")[0],
+          startTime: "02:00 PM",
+          endTime: "02:30 PM",
+          reason: "Follow-up Consultation",
+          status: "completed",
+        },
+      ];
+
+      return sampleAppointments;
+    }
+
+    // Apply filters for existing mock data
     if (filters.patient) {
+      // Handle both string format and object with _id format
+      const patientId =
+        typeof filters.patient === "object"
+          ? filters.patient._id
+          : filters.patient;
       filteredAppointments = filteredAppointments.filter(
-        (a) => a.patient === filters.patient
+        (a) => a.patient === patientId
       );
       console.log("After patient filter:", filteredAppointments);
     }
 
     if (filters.doctor) {
+      // Handle both string format and object with _id format
+      const doctorId =
+        typeof filters.doctor === "object"
+          ? filters.doctor._id
+          : filters.doctor;
       filteredAppointments = filteredAppointments.filter(
-        (a) => a.doctor === filters.doctor
+        (a) => a.doctor === doctorId
       );
     }
 
@@ -694,14 +854,29 @@ const mockApi = {
 
     // Apply filters
     if (filters.patient) {
-      filteredReports = filteredReports.filter(
-        (r) => r.patient === filters.patient
-      );
+      // Handle both string format and object with _id format
+      const patientId =
+        typeof filters.patient === "object"
+          ? filters.patient._id
+          : filters.patient;
+      filteredReports = filteredReports.filter((r) => r.patient === patientId);
     }
 
     if (filters.technician) {
+      // Handle both string format and object with _id format
+      const technicianId =
+        typeof filters.technician === "object"
+          ? filters.technician._id
+          : filters.technician;
       filteredReports = filteredReports.filter(
-        (r) => r.technician === filters.technician
+        (r) => r.technician === technicianId
+      );
+    }
+
+    // If we have a reportId filter
+    if (filters.reportId) {
+      filteredReports = filteredReports.filter(
+        (r) => r._id === filters.reportId
       );
     }
 
@@ -740,6 +915,23 @@ const mockApi = {
     };
 
     mockLabReports.push(newReport);
+
+    // If this report is linked to an order, update the order status and add reportId
+    if (reportData.orderId) {
+      const orderIndex = mockLabOrders.findIndex(
+        (order) => order._id === reportData.orderId
+      );
+
+      if (orderIndex !== -1) {
+        mockLabOrders[orderIndex] = {
+          ...mockLabOrders[orderIndex],
+          status: "completed",
+          reportId: newReport._id,
+          completedDate: new Date().toISOString(),
+        };
+      }
+    }
+
     return newReport;
   },
 
@@ -751,23 +943,33 @@ const mockApi = {
 
     // Apply filters
     if (filters.patient) {
-      filteredOrders = filteredOrders.filter(
-        (o) => o.patient === filters.patient
-      );
+      // Handle both string format and object with _id format
+      const patientId =
+        typeof filters.patient === "object"
+          ? filters.patient._id
+          : filters.patient;
+      filteredOrders = filteredOrders.filter((o) => o.patient === patientId);
     }
 
     if (filters.doctor) {
-      filteredOrders = filteredOrders.filter(
-        (o) => o.doctor === filters.doctor
-      );
+      // Handle both string format and object with _id format
+      const doctorId =
+        typeof filters.doctor === "object"
+          ? filters.doctor._id
+          : filters.doctor;
+      filteredOrders = filteredOrders.filter((o) => o.doctor === doctorId);
     }
 
     // Special handling for lab technicians - they should see:
     // 1. Orders already assigned to them
     // 2. All pending orders that need a technician to accept
     if (filters.technician) {
+      const technicianId =
+        typeof filters.technician === "object"
+          ? filters.technician._id
+          : filters.technician;
       filteredOrders = filteredOrders.filter(
-        (o) => o.technician === filters.technician || o.status === "pending"
+        (o) => o.technician === technicianId || o.status === "pending"
       );
     }
 
@@ -783,7 +985,7 @@ const mockApi = {
       );
     }
 
-    // Populate patient, doctor, technician and department information
+    // Populate patient, doctor, technician, department, and report information
     return filteredOrders.map((order) => {
       const patient = mockUsers.find((u) => u._id === order.patient);
       const doctor = mockUsers.find((u) => u._id === order.doctor);
@@ -793,6 +995,12 @@ const mockApi = {
       const department = mockDepartments.find(
         (d) => d._id === order.department
       );
+
+      // Include report data if there is a reportId
+      let report = null;
+      if (order.reportId) {
+        report = mockLabReports.find((r) => r._id === order.reportId);
+      }
 
       return {
         ...order,
@@ -825,6 +1033,15 @@ const mockApi = {
           ? {
               _id: department._id,
               name: department.name,
+            }
+          : null,
+        report: report
+          ? {
+              _id: report._id,
+              reportType: report.reportType,
+              date: report.date,
+              results: report.results,
+              notes: report.notes,
             }
           : null,
       };

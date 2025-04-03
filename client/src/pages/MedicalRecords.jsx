@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion } from "framer-motion";
 import {
@@ -7,10 +7,16 @@ import {
   FaFilePdf,
   FaFileImage,
   FaFileAlt,
+  FaVial,
+  FaFlask,
 } from "react-icons/fa";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
+import { useAuth } from "../context/AuthContext";
+import mockApi from "../services/mockApi";
+import PageTransition from "../components/animations/PageTransition";
+import ViewLabReport from "../components/modals/ViewLabReport";
 
 const PageContainer = styled.div`
   display: flex;
@@ -172,85 +178,104 @@ const RecordActions = styled.div`
   gap: ${(props) => props.theme.spacing(1)};
 `;
 
-// Mock medical records data
-const mockRecords = [
-  {
-    id: "MR001",
-    patientId: "P001",
-    patientName: "John Doe",
-    type: "Diagnosis",
-    date: "2023-10-05",
-    doctor: "Dr. Sarah Johnson",
-    department: "General Medicine",
-    details: {
-      diagnosis: "Common Cold",
-      symptoms: "Fever, Cough, Runny Nose",
-      notes: "Rest advised for 3 days with medication",
-    },
-    fileType: "document",
-  },
-  {
-    id: "MR002",
-    patientId: "P002",
-    patientName: "Jane Smith",
-    type: "Lab Report",
-    date: "2023-10-03",
-    doctor: "Dr. Michael Brown",
-    department: "Pathology",
-    details: {
-      test: "Blood Test",
-      result: "Normal",
-      notes: "All parameters within normal range",
-    },
-    fileType: "pdf",
-  },
-  {
-    id: "MR003",
-    patientId: "P003",
-    patientName: "Robert Johnson",
-    type: "Imaging",
-    date: "2023-09-28",
-    doctor: "Dr. Emily Davis",
-    department: "Radiology",
-    details: {
-      procedure: "X-Ray Chest",
-      finding: "No abnormalities detected",
-      notes: "Clear lung fields",
-    },
-    fileType: "image",
-  },
-  {
-    id: "MR004",
-    patientId: "P001",
-    patientName: "John Doe",
-    type: "Prescription",
-    date: "2023-10-05",
-    doctor: "Dr. Sarah Johnson",
-    department: "General Medicine",
-    details: {
-      medications: "Paracetamol, Cetirizine",
-      dosage: "500mg twice daily, 10mg once daily",
-      duration: "5 days",
-    },
-    fileType: "document",
-  },
-];
-
 const MedicalRecords = () => {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState("");
   const [activeTab, setActiveTab] = useState("all");
-  const [records, setRecords] = useState(mockRecords);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [selectedLabReport, setSelectedLabReport] = useState(null);
+  const [showLabReportModal, setShowLabReportModal] = useState(false);
 
-  const filteredRecords = records.filter((record) => {
-    const matchesSearch =
-      record.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.id.toLowerCase().includes(searchTerm.toLowerCase());
+  useEffect(() => {
+    const fetchRecords = async () => {
+      setLoading(true);
+      try {
+        // Mock records for now
+        const mockMedicalRecords = [
+          {
+            id: "MR001",
+            type: "Diagnosis",
+            date: "2023-10-05",
+            doctor: "Dr. Sarah Johnson",
+            department: "General Medicine",
+            details: {
+              diagnosis: "Common Cold",
+              symptoms: "Fever, Cough, Runny Nose",
+              notes: "Rest advised for 3 days with medication",
+            },
+            fileType: "document",
+          },
+          {
+            id: "MR002",
+            type: "Lab Report",
+            date: "2023-10-03",
+            doctor: "Dr. Michael Brown",
+            department: "Pathology",
+            details: {
+              test: "Blood Test",
+              results: "Normal blood count, slightly elevated glucose levels",
+              recommendations: "Follow-up in 3 months",
+            },
+            fileType: "pdf",
+          },
+          {
+            id: "MR003",
+            type: "X-Ray",
+            date: "2023-09-25",
+            doctor: "Dr. Emily Wilson",
+            department: "Radiology",
+            details: {
+              region: "Chest",
+              findings: "No abnormalities detected",
+              notes: "Annual check-up",
+            },
+            fileType: "image",
+          },
+        ];
 
-    if (activeTab === "all") return matchesSearch;
-    return (
-      matchesSearch && record.type.toLowerCase() === activeTab.toLowerCase()
-    );
-  });
+        // Fetch lab reports for the current user if they are a patient
+        let labReports = [];
+        if (user && user.role === "patient") {
+          try {
+            const labReportsResponse = await mockApi.getLabReports({
+              patient: user._id,
+            });
+
+            // Transform lab reports to match medical records format
+            labReports = labReportsResponse.map((report) => ({
+              id: report._id,
+              type: "Lab Report",
+              reportType: report.reportType,
+              date: report.date,
+              doctor: report.technician?.name || "Lab Technician",
+              department: "Laboratory",
+              details: {
+                test: report.reportType,
+                results: report.results,
+                notes: report.notes || "",
+              },
+              fileType: "lab",
+              rawReport: report, // Keep original data for reference
+            }));
+
+            console.log("Fetched lab reports:", labReports);
+          } catch (error) {
+            console.error("Error fetching lab reports:", error);
+          }
+        }
+
+        // Combine mock records with real lab reports
+        setRecords([...mockMedicalRecords, ...labReports]);
+        setLoading(false);
+      } catch (error) {
+        console.error("Error fetching medical records:", error);
+        setLoading(false);
+      }
+    };
+
+    fetchRecords();
+  }, [user]);
 
   const getFileIcon = (fileType) => {
     switch (fileType) {
@@ -258,125 +283,197 @@ const MedicalRecords = () => {
         return <FaFilePdf />;
       case "image":
         return <FaFileImage />;
-      default:
+      case "document":
         return <FaFileAlt />;
+      case "lab":
+        return <FaFlask />;
+      default:
+        return <FaFileMedical />;
     }
   };
 
   const getFileColor = (fileType) => {
     switch (fileType) {
       case "pdf":
-        return "#F44336";
+        return (props) => props.theme.colors.status.error;
       case "image":
-        return "#4CAF50";
+        return (props) => props.theme.colors.info;
+      case "document":
+        return (props) => props.theme.colors.primary.main;
+      case "lab":
+        return (props) => props.theme.colors.secondary;
       default:
-        return "#4A90E2";
+        return (props) => props.theme.colors.success;
+    }
+  };
+
+  const filteredRecords = records.filter((record) => {
+    const matchesSearch =
+      record.type.toLowerCase().includes(filter.toLowerCase()) ||
+      record.doctor.toLowerCase().includes(filter.toLowerCase()) ||
+      (record.reportType &&
+        record.reportType.toLowerCase().includes(filter.toLowerCase()));
+
+    if (activeTab === "all") return matchesSearch;
+    if (activeTab === "lab" && record.fileType === "lab") return matchesSearch;
+    if (activeTab === "diagnosis" && record.type === "Diagnosis")
+      return matchesSearch;
+    if (
+      activeTab === "imaging" &&
+      (record.type === "X-Ray" ||
+        record.type === "MRI" ||
+        record.type === "CT Scan")
+    )
+      return matchesSearch;
+
+    return false;
+  });
+
+  const handleViewLabReport = (record) => {
+    if (record.fileType === "lab" && record.rawReport) {
+      setSelectedLabReport(record.rawReport);
+      setShowLabReportModal(true);
     }
   };
 
   return (
-    <PageContainer>
-      <TopBar>
-        <SearchContainer>
-          <FaSearch />
-          <input
-            type="text"
-            placeholder="Search records..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </SearchContainer>
+    <PageTransition>
+      <PageContainer>
+        <TopBar>
+          <h1>Medical Records</h1>
+          <SearchContainer>
+            <FaSearch />
+            <input
+              type="text"
+              placeholder="Search records..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </SearchContainer>
+        </TopBar>
 
-        <Button variant="primary">
-          <FaFileMedical />
-          Add New Record
-        </Button>
-      </TopBar>
-
-      <TabsContainer>
-        <Tab active={activeTab === "all"} onClick={() => setActiveTab("all")}>
-          All Records
-        </Tab>
-        <Tab
-          active={activeTab === "diagnosis"}
-          onClick={() => setActiveTab("diagnosis")}
-        >
-          Diagnosis
-        </Tab>
-        <Tab
-          active={activeTab === "lab report"}
-          onClick={() => setActiveTab("lab report")}
-        >
-          Lab Reports
-        </Tab>
-        <Tab
-          active={activeTab === "imaging"}
-          onClick={() => setActiveTab("imaging")}
-        >
-          Imaging
-        </Tab>
-        <Tab
-          active={activeTab === "prescription"}
-          onClick={() => setActiveTab("prescription")}
-        >
-          Prescriptions
-        </Tab>
-      </TabsContainer>
-
-      <RecordsGrid>
-        {filteredRecords.map((record) => (
-          <RecordCard
-            key={record.id}
-            as={motion.div}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+        <TabsContainer>
+          <Tab active={activeTab === "all"} onClick={() => setActiveTab("all")}>
+            All Records
+          </Tab>
+          <Tab active={activeTab === "lab"} onClick={() => setActiveTab("lab")}>
+            Lab Reports
+          </Tab>
+          <Tab
+            active={activeTab === "diagnosis"}
+            onClick={() => setActiveTab("diagnosis")}
           >
-            <RecordHeader>
-              <RecordIcon color={getFileColor(record.fileType)}>
-                {getFileIcon(record.fileType)}
-              </RecordIcon>
-              <RecordInfo>
-                <RecordTitle>{record.type}</RecordTitle>
-                <RecordDate>{record.date}</RecordDate>
-              </RecordInfo>
-            </RecordHeader>
+            Diagnoses
+          </Tab>
+          <Tab
+            active={activeTab === "imaging"}
+            onClick={() => setActiveTab("imaging")}
+          >
+            Imaging
+          </Tab>
+        </TabsContainer>
 
-            <RecordContent>
-              <RecordDetails>
-                <RecordDetail>
-                  <span>Patient:</span>
-                  <span>{record.patientName}</span>
-                </RecordDetail>
-                <RecordDetail>
-                  <span>Doctor:</span>
-                  <span>{record.doctor}</span>
-                </RecordDetail>
-                <RecordDetail>
-                  <span>Department:</span>
-                  <span>{record.department}</span>
-                </RecordDetail>
+        {loading ? (
+          <div>Loading records...</div>
+        ) : filteredRecords.length > 0 ? (
+          <RecordsGrid>
+            {filteredRecords.map((record) => (
+              <RecordCard
+                key={record.id}
+                onClick={() =>
+                  record.fileType === "lab" ? handleViewLabReport(record) : null
+                }
+                style={{
+                  cursor: record.fileType === "lab" ? "pointer" : "default",
+                }}
+              >
+                <RecordHeader>
+                  <RecordIcon color={getFileColor(record.fileType)}>
+                    {getFileIcon(record.fileType)}
+                  </RecordIcon>
+                  <RecordInfo>
+                    <RecordTitle>
+                      {record.reportType || record.type}
+                    </RecordTitle>
+                    <RecordDate>
+                      {new Date(record.date).toLocaleDateString()}
+                    </RecordDate>
+                  </RecordInfo>
+                </RecordHeader>
+                <RecordContent>
+                  <RecordDetails>
+                    <RecordDetail>
+                      <span>Provider:</span>
+                      <span>{record.doctor}</span>
+                    </RecordDetail>
+                    <RecordDetail>
+                      <span>Department:</span>
+                      <span>{record.department}</span>
+                    </RecordDetail>
 
-                {Object.entries(record.details).map(([key, value]) => (
-                  <RecordDetail key={key}>
-                    <span>{key.charAt(0).toUpperCase() + key.slice(1)}:</span>
-                    <span>{value}</span>
-                  </RecordDetail>
-                ))}
-              </RecordDetails>
+                    {record.fileType === "lab" &&
+                      record.rawReport &&
+                      record.rawReport.results && (
+                        <div style={{ marginTop: "10px" }}>
+                          <div
+                            style={{ fontWeight: "600", marginBottom: "5px" }}
+                          >
+                            Results:
+                          </div>
+                          {Object.entries(record.rawReport.results).map(
+                            ([key, value]) => (
+                              <div
+                                key={key}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  padding: "3px 0",
+                                  borderBottom: "1px dashed #eee",
+                                  fontSize: "0.9em",
+                                }}
+                              >
+                                <span>{key}:</span>
+                                <span>{value}</span>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
 
-              <RecordActions>
-                <Button variant="secondary" size="small">
-                  View
-                </Button>
-                <Button variant="accent" size="small">
-                  Download
-                </Button>
-              </RecordActions>
-            </RecordContent>
-          </RecordCard>
-        ))}
-      </RecordsGrid>
-    </PageContainer>
+                    {record.details && record.details.notes && (
+                      <div style={{ marginTop: "10px", fontSize: "0.9em" }}>
+                        <div style={{ fontWeight: "600", marginBottom: "5px" }}>
+                          Notes:
+                        </div>
+                        <div>{record.details.notes}</div>
+                      </div>
+                    )}
+                  </RecordDetails>
+                  <RecordActions>
+                    <Button size="small">View Details</Button>
+                  </RecordActions>
+                </RecordContent>
+              </RecordCard>
+            ))}
+          </RecordsGrid>
+        ) : (
+          <div style={{ textAlign: "center", marginTop: "40px" }}>
+            <h3>No records found</h3>
+            <p>
+              {filter
+                ? "Try adjusting your search criteria"
+                : "You don't have any medical records yet"}
+            </p>
+          </div>
+        )}
+
+        <ViewLabReport
+          isOpen={showLabReportModal}
+          onClose={() => setShowLabReportModal(false)}
+          report={selectedLabReport}
+        />
+      </PageContainer>
+    </PageTransition>
   );
 };
 

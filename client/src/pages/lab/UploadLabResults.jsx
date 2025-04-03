@@ -331,27 +331,12 @@ const UploadLabResults = () => {
             setReportType(order.testType);
             setNotes(order.notes || "");
 
-            // Set default parameters based on test type
-            if (order.testType === "Blood Test") {
-              setResults([
-                { parameter: "Hemoglobin", value: "", unit: "g/dL" },
-                {
-                  parameter: "White Blood Cells",
-                  value: "",
-                  unit: "thousand/μL",
-                },
-                { parameter: "Platelets", value: "", unit: "thousand/μL" },
-                { parameter: "Glucose", value: "", unit: "mg/dL" },
-              ]);
-            } else if (order.testType === "Urine Analysis") {
-              setResults([
-                { parameter: "pH", value: "", unit: "" },
-                { parameter: "Specific Gravity", value: "", unit: "" },
-                { parameter: "Glucose", value: "", unit: "mg/dL" },
-                { parameter: "Protein", value: "", unit: "mg/dL" },
-              ]);
-            }
+            // Use the updateResultsForTestType function to set appropriate fields
+            updateResultsForTestType(order.testType);
           }
+        } else {
+          // If no order is selected, initialize form fields based on default test type
+          updateResultsForTestType("Blood Test"); // Default to Blood Test
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -373,9 +358,81 @@ const UploadLabResults = () => {
     setResults(updatedResults);
   };
 
+  // Function to get suggested parameters based on test type
+  const getSuggestedParameters = () => {
+    if (reportType === "Blood Test") {
+      return [
+        "Hemoglobin",
+        "White Blood Cells",
+        "Red Blood Cells",
+        "Platelets",
+        "Glucose",
+        "Cholesterol",
+        "Triglycerides",
+        "HDL",
+        "LDL",
+        "Sodium",
+        "Potassium",
+        "Chloride",
+      ];
+    } else if (reportType === "Urine Analysis") {
+      return [
+        "pH",
+        "Specific Gravity",
+        "Glucose",
+        "Protein",
+        "Ketones",
+        "Nitrites",
+        "Leukocytes",
+        "Blood",
+      ];
+    } else if (
+      reportType === "X-Ray" ||
+      reportType === "CT Scan" ||
+      reportType === "MRI"
+    ) {
+      return ["Region", "Findings", "Impression", "Recommendations"];
+    }
+    return [];
+  };
+
+  // Function to get suggested units based on parameter
+  const getSuggestedUnit = (parameter) => {
+    const unitMap = {
+      // Blood Test units
+      Hemoglobin: "g/dL",
+      "White Blood Cells": "thousand/μL",
+      "Red Blood Cells": "million/μL",
+      Platelets: "thousand/μL",
+      Glucose: "mg/dL",
+      Cholesterol: "mg/dL",
+      Triglycerides: "mg/dL",
+      HDL: "mg/dL",
+      LDL: "mg/dL",
+      Sodium: "mEq/L",
+      Potassium: "mEq/L",
+      Chloride: "mEq/L",
+
+      // Urine Analysis units
+      "Specific Gravity": "",
+      Glucose: "mg/dL",
+      Protein: "mg/dL",
+      Ketones: "mg/dL",
+    };
+
+    return unitMap[parameter] || "";
+  };
+
+  // Modify handleResultChange to auto-suggest unit when parameter changes
   const handleResultChange = (index, field, value) => {
     const updatedResults = [...results];
     updatedResults[index][field] = value;
+
+    // If the parameter field changed, suggest a unit
+    if (field === "parameter") {
+      updatedResults[index].unit = getSuggestedUnit(value);
+    }
+
     setResults(updatedResults);
   };
 
@@ -400,16 +457,24 @@ const UploadLabResults = () => {
         notes,
         results: resultsObject,
         status: "completed",
+        // Link to the order if one was selected
+        orderId: selectedOrder ? selectedOrder._id : null,
       };
+
+      console.log("Uploading lab report with data:", reportData);
 
       // Call the API to upload the report
       const uploadedReport = await mockAuthService.uploadLabReport(reportData);
 
       // If this is linked to an order, update the order status and link the report
       if (selectedOrder) {
+        console.log(
+          `Updating lab order ${selectedOrder._id} with report ID ${uploadedReport._id}`
+        );
         await mockAuthService.updateLabOrder(selectedOrder._id, {
           status: "completed",
           reportId: uploadedReport._id,
+          completedDate: new Date().toISOString(),
         });
       }
 
@@ -422,8 +487,50 @@ const UploadLabResults = () => {
       }, 3000);
     } catch (error) {
       console.error("Error uploading lab report:", error);
+      alert(`Failed to upload report: ${error.message || "Unknown error"}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateResultsForTestType = (testType) => {
+    console.log("Updating results for test type:", testType);
+
+    // Set default parameters based on test type
+    if (testType === "Blood Test") {
+      setResults([
+        { parameter: "Hemoglobin", value: "", unit: "g/dL" },
+        { parameter: "White Blood Cells", value: "", unit: "thousand/μL" },
+        { parameter: "Platelets", value: "", unit: "thousand/μL" },
+        { parameter: "Glucose", value: "", unit: "mg/dL" },
+      ]);
+    } else if (testType === "Urine Analysis") {
+      setResults([
+        { parameter: "pH", value: "", unit: "" },
+        { parameter: "Specific Gravity", value: "", unit: "" },
+        { parameter: "Glucose", value: "", unit: "mg/dL" },
+        { parameter: "Protein", value: "", unit: "mg/dL" },
+      ]);
+    } else if (testType === "X-Ray") {
+      setResults([
+        { parameter: "Findings", value: "", unit: "" },
+        { parameter: "Impression", value: "", unit: "" },
+      ]);
+    } else if (testType === "CT Scan") {
+      setResults([
+        { parameter: "Region", value: "", unit: "" },
+        { parameter: "Findings", value: "", unit: "" },
+        { parameter: "Impression", value: "", unit: "" },
+      ]);
+    } else if (testType === "MRI") {
+      setResults([
+        { parameter: "Region", value: "", unit: "" },
+        { parameter: "Findings", value: "", unit: "" },
+        { parameter: "Impression", value: "", unit: "" },
+      ]);
+    } else {
+      // Default to empty result if test type is not recognized
+      setResults([{ parameter: "", value: "", unit: "" }]);
     }
   };
 
@@ -465,7 +572,9 @@ const UploadLabResults = () => {
         <Header>
           <Title>Upload Lab Results</Title>
           <Subtitle>
-            Complete the form below to upload new lab test results for a patient
+            Complete the form below to upload new lab test results. These
+            results will be accessible to the patient and their doctor through
+            the patient records.
           </Subtitle>
         </Header>
 
@@ -565,50 +674,8 @@ const UploadLabResults = () => {
                             setReportType(order.testType);
                             setNotes(order.notes || "");
 
-                            // Set default parameters based on test type
-                            if (order.testType === "Blood Test") {
-                              setResults([
-                                {
-                                  parameter: "Hemoglobin",
-                                  value: "",
-                                  unit: "g/dL",
-                                },
-                                {
-                                  parameter: "White Blood Cells",
-                                  value: "",
-                                  unit: "thousand/μL",
-                                },
-                                {
-                                  parameter: "Platelets",
-                                  value: "",
-                                  unit: "thousand/μL",
-                                },
-                                {
-                                  parameter: "Glucose",
-                                  value: "",
-                                  unit: "mg/dL",
-                                },
-                              ]);
-                            } else if (order.testType === "Urine Analysis") {
-                              setResults([
-                                { parameter: "pH", value: "", unit: "" },
-                                {
-                                  parameter: "Specific Gravity",
-                                  value: "",
-                                  unit: "",
-                                },
-                                {
-                                  parameter: "Glucose",
-                                  value: "",
-                                  unit: "mg/dL",
-                                },
-                                {
-                                  parameter: "Protein",
-                                  value: "",
-                                  unit: "mg/dL",
-                                },
-                              ]);
-                            }
+                            // Use the updateResultsForTestType function to set appropriate fields
+                            updateResultsForTestType(order.testType);
                           }
                         }}
                       >
@@ -654,7 +721,13 @@ const UploadLabResults = () => {
                   <Select
                     id="reportType"
                     value={reportType}
-                    onChange={(e) => setReportType(e.target.value)}
+                    onChange={(e) => {
+                      const newTestType = e.target.value;
+                      setReportType(newTestType);
+
+                      // Update the results fields based on the selected test type
+                      updateResultsForTestType(newTestType);
+                    }}
                     required
                   >
                     <option value="Blood Test">Blood Test</option>
@@ -683,19 +756,42 @@ const UploadLabResults = () => {
                 Test Results
               </SectionTitle>
 
+              <div
+                style={{
+                  marginBottom: "16px",
+                  fontSize: "0.9rem",
+                  color: "#666",
+                }}
+              >
+                <p>
+                  Enter test parameters and values based on the selected test
+                  type. The system suggests commonly used parameters for{" "}
+                  {reportType}. You can select from the suggestions or enter
+                  custom parameters.
+                </p>
+              </div>
+
               {results.map((result, index) => (
                 <ResultItem key={index}>
                   <FormGroup style={{ flex: 2 }}>
                     <Label htmlFor={`parameter-${index}`}>Parameter</Label>
-                    <Input
-                      id={`parameter-${index}`}
-                      value={result.parameter}
-                      onChange={(e) =>
-                        handleResultChange(index, "parameter", e.target.value)
-                      }
-                      placeholder="e.g. Hemoglobin"
-                      required
-                    />
+                    <div style={{ position: "relative" }}>
+                      <Input
+                        id={`parameter-${index}`}
+                        value={result.parameter}
+                        onChange={(e) =>
+                          handleResultChange(index, "parameter", e.target.value)
+                        }
+                        placeholder="e.g. Hemoglobin"
+                        list={`parameters-list-${index}`}
+                        required
+                      />
+                      <datalist id={`parameters-list-${index}`}>
+                        {getSuggestedParameters().map((param, i) => (
+                          <option key={i} value={param} />
+                        ))}
+                      </datalist>
+                    </div>
                   </FormGroup>
                   <FormGroup style={{ flex: 1 }}>
                     <Label htmlFor={`value-${index}`}>Value</Label>
@@ -740,6 +836,32 @@ const UploadLabResults = () => {
                 <FaPlus /> Add Parameter
               </Button>
             </FormSection>
+
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "1rem",
+                backgroundColor: "#e3f2fd",
+                borderRadius: "4px",
+                fontSize: "0.9rem",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <FaUser style={{ marginRight: "0.5rem", color: "#2196f3" }} />
+                <strong>Important:</strong>
+              </div>
+              <p style={{ margin: "0" }}>
+                Lab results will be immediately accessible to the patient and
+                their doctor in their medical records. Make sure all information
+                is accurate before submission.
+              </p>
+            </div>
 
             <Button
               type="submit"

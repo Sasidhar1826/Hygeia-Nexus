@@ -3,6 +3,7 @@ import { useAuth } from "./context/AuthContext";
 import AnimationContainer from "./components/animations/AnimationContainer";
 import PatientDashboard from "./pages/patient/PatientDashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
+import DoctorDashboard from "./pages/doctor/DoctorDashboard";
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
@@ -35,8 +36,13 @@ const Dashboard = () => {
     return <div>Lab Technician Dashboard will be implemented here</div>;
   }
 
-  // Default - Doctor or any other role gets the Doctor dashboard
-  return <div>Doctor Dashboard will be implemented here</div>;
+  // Doctor dashboard
+  if (isDoctor()) {
+    return <DoctorDashboard />;
+  }
+
+  // Default fallback
+  return <div>Please select a role to continue</div>;
 };
 
 export default Dashboard;

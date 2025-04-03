@@ -256,7 +256,7 @@ const Sidebar = () => {
         <SidebarHeader>
           <Logo isCollapsed={isCollapsed}>
             <img src="/logo.svg" alt="Hospital Logo" />
-            <h1>MediCare</h1>
+            <h1>Hygiea Nexus</h1>
           </Logo>
         </SidebarHeader>
 

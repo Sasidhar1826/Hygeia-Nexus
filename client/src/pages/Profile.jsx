@@ -234,9 +234,49 @@ const Profile = () => {
       // Fetch user's appointments using mockApi
       const fetchAppointments = async () => {
         try {
-          // Use mockApi for development
-          const response = await mockApi.getAppointments({ patient: user._id });
-          setAppointments(response);
+          console.log("Fetching appointments for user:", user._id);
+
+          // For development environment, instead of filtering by user ID that doesn't match mock data,
+          // return a few sample appointments
+          const mockAppointments = [
+            {
+              _id: "1",
+              appointmentDate: new Date(
+                new Date().setDate(new Date().getDate() + 3)
+              )
+                .toISOString()
+                .split("T")[0],
+              startTime: "10:00 AM",
+              endTime: "10:30 AM",
+              reason: "Annual Checkup",
+              status: "confirmed",
+              doctor: {
+                _id: "2",
+                name: "Dr. Sarah Johnson",
+                specialization: "Cardiology",
+              },
+            },
+            {
+              _id: "2",
+              appointmentDate: new Date(
+                new Date().setDate(new Date().getDate() - 5)
+              )
+                .toISOString()
+                .split("T")[0],
+              startTime: "02:00 PM",
+              endTime: "02:30 PM",
+              reason: "Follow-up Consultation",
+              status: "completed",
+              doctor: {
+                _id: "2",
+                name: "Dr. Sarah Johnson",
+                specialization: "Cardiology",
+              },
+            },
+          ];
+
+          console.log("Returning mock appointments:", mockAppointments);
+          setAppointments(mockAppointments);
           setLoading(false);
         } catch (error) {
           console.error("Error fetching appointments:", error);
@@ -258,11 +298,15 @@ const Profile = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      console.log("Submitting profile update:", formData);
       // Using updateUserProfile from AuthContext which handles the localStorage update
-      await updateUserProfile(formData);
+      const updatedUser = await updateUserProfile(formData);
+      console.log("Profile updated successfully:", updatedUser);
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating profile:", error);
+      // Display an error message to the user (in a real app, you'd show this in the UI)
+      alert(`Failed to update profile: ${error.message || "Unknown error"}`);
     }
   };
 

@@ -329,7 +329,7 @@ const Login = () => {
         >
           <LogoContainer>
             <FaHospital />
-            <h1>MediCare</h1>
+            <h1>Hygiea Nexus</h1>
           </LogoContainer>
           <FormTitle>Sign In</FormTitle>
 

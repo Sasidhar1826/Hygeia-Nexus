@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import api from "../services/api";
-import mockAuthService from "../services/mockApi";
+import mockApi from "../services/mockApi";
 
 const AuthContext = createContext();
 
@@ -31,18 +31,68 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
+    // Debug: check if all required API methods exist
+    console.log("Checking mock API methods:");
+    console.log(
+      "- updateUser exists:",
+      typeof mockApi.updateUser === "function"
+    );
+    console.log(
+      "- updatePatient exists:",
+      typeof mockApi.updatePatient === "function"
+    );
+    console.log(
+      "- updateDoctor exists:",
+      typeof mockApi.updateDoctor === "function"
+    );
+    console.log(
+      "- updateLabTechnician exists:",
+      typeof mockApi.updateLabTechnician === "function"
+    );
+
     initializeAuth();
   }, []);
+
+  // Helper function to find a mock user by email
+  const findMockUserByEmail = (email) => {
+    // This function would search the mock users data
+    // In a real implementation, you would import the mockUsers array from mockApi.js
+    // For now, we'll just create sample mapping for demo
+    const emailToIdMap = {
+      "admin@example.com": "1",
+      "doctor@example.com": "2",
+      "patient@example.com": "3",
+      "lab@example.com": "4",
+      "emily@example.com": "5",
+      "david@example.com": "6",
+      "jessica@example.com": "7",
+    };
+
+    return emailToIdMap[email];
+  };
 
   const login = async (email, password, role = "") => {
     try {
       setError(null);
 
       // Always use mock API for development
-      const response = await mockAuthService.login(email, password, role);
+      console.log("Attempting login with:", { email, role });
+      const response = await mockApi.login(email, password, role);
 
       if (!response || !response.token) {
         throw new Error("Invalid login response");
+      }
+
+      console.log("Login successful, user data:", response.user);
+
+      // Find corresponding mock user ID if possible
+      const mockUserId = findMockUserByEmail(email);
+      if (mockUserId) {
+        console.log(
+          `Found matching mock user ID: ${mockUserId} for email: ${email}`
+        );
+        // Update the ID to match mock data for easier integration
+        response.user._id = mockUserId;
       }
 
       // Store token and user in localStorage
@@ -63,7 +113,7 @@ export const AuthProvider = ({ children }) => {
       setError(null);
 
       // Always use mock API for development
-      const response = await mockAuthService.signup(userData);
+      const response = await mockApi.signup(userData);
 
       // Store token and user in localStorage
       localStorage.setItem("token", response.token);
@@ -78,7 +128,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    mockAuthService.logout();
+    mockApi.logout();
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
@@ -87,12 +137,35 @@ export const AuthProvider = ({ children }) => {
   const updateUserProfile = async (userData) => {
     try {
       setError(null);
-      const response = await api.put(`/users/${user._id}`, userData);
+      let response;
 
-      // Update stored user data
+      // Use appropriate mock API based on user role if using mock API
+      if (useMockApi) {
+        try {
+          console.log("Updating profile for user:", user);
+
+          // Instead of using the mock API update functions directly, handle the update manually
+          // This is needed because the user IDs in localStorage may not match mock data IDs
+          const updatedUserData = { ...user, ...userData };
+          console.log("Updated user data:", updatedUserData);
+
+          // Update localStorage regardless of mock API status
+          localStorage.setItem("user", JSON.stringify(updatedUserData));
+
+          // Set response format to match API structure
+          response = { data: updatedUserData };
+          console.log("Profile updated successfully");
+        } catch (error) {
+          console.error("Error in profile update:", error);
+          throw error;
+        }
+      } else {
+        // Use real API if not using mock
+        response = await api.put(`/users/${user._id}`, userData);
+      }
+
+      // Update stored user data (already done in mock path, but needed for real API)
       const updatedUser = response.data;
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-
       setUser(updatedUser);
       return updatedUser;
     } catch (err) {

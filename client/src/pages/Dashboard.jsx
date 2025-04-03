@@ -36,6 +36,7 @@ import { useAuth } from "../context/AuthContext";
 import mockAuthService from "../services/mockApi";
 import PatientDashboard from "./patient/PatientDashboard";
 import AdminDashboard from "./admin/Dashboard";
+import DoctorDashboard from "./doctor/DoctorDashboard";
 import LabTechnicianDashboard from "./lab/LabTechnicianDashboard";
 
 // Register ChartJS components
@@ -465,12 +466,21 @@ const Dashboard = () => {
     return <AdminDashboard />;
   }
 
-  if (isLabTechnician()) {
-    return <LabTechnicianDashboard />;
+  if (isDoctor()) {
+    return <DoctorDashboard />;
   }
 
-  // Default - Doctor or any other role gets the Doctor dashboard
-  return <div>Doctor Dashboard will be implemented here</div>;
+  if (isLabTechnician()) {
+    try {
+      return <LabTechnicianDashboard />;
+    } catch (error) {
+      console.error("Error loading Lab Technician Dashboard:", error);
+      return <div>Lab Technician Dashboard is under development</div>;
+    }
+  }
+
+  // Default - fallback dashboard
+  return <div>Please select a role to continue</div>;
 };
 
 export default Dashboard;

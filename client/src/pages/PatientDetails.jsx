@@ -15,9 +15,11 @@ import {
   FaTrashAlt,
   FaUser,
   FaFlask,
+  FaVial,
 } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import RequestLabTest from "../components/modals/RequestLabTest";
+import ViewLabReport from "../components/modals/ViewLabReport";
 import mockApi from "../services/mockApi";
 
 const PageHeader = styled.div`
@@ -299,95 +301,119 @@ const AppointmentStatus = styled.div`
   }};
 `;
 
-// Mock data for a patient - keep basic patient info but will fetch appointments separately
-const mockPatient = {
-  id: "1",
-  firstName: "John",
-  lastName: "Doe",
-  gender: "Male",
-  birthDate: "1978-06-15",
-  age: 45,
-  bloodGroup: "A+",
-  contactNumber: "+1 (555) 123-4567",
-  email: "john.doe@example.com",
-  address: {
-    street: "123 Main St",
-    city: "New York",
-    state: "NY",
-    zip: "10001",
-    country: "USA",
-  },
-  emergencyContact: {
-    name: "Jane Doe",
-    relationship: "Wife",
-    contactNumber: "+1 (555) 987-6543",
-  },
-  insurance: {
-    provider: "Global Health Insurance",
-    policyNumber: "GHI-1234567",
-    expiryDate: "2025-12-31",
-  },
-  allergies: ["Penicillin", "Peanuts"],
-  chronicConditions: ["Hypertension", "Type 2 Diabetes"],
-  medicalRecords: [
-    {
-      id: "rec1",
-      date: "2024-03-15",
-      type: "Diagnosis",
-      doctor: "Dr. Michael Rodriguez",
-      notes:
-        "Patient presents with stable blood pressure. Continuing current medication regimen.",
-    },
-    {
-      id: "rec2",
-      date: "2024-02-05",
-      type: "Prescription",
-      doctor: "Dr. Sarah Johnson",
-      notes:
-        "Renewed prescription for Metformin 500mg, twice daily for 90 days.",
-    },
-  ],
-  prescriptions: [
-    {
-      id: "pres1",
-      date: "2024-03-15",
-      medicine: "Lisinopril",
-      dosage: "10mg",
-      frequency: "Once daily",
-      duration: "90 days",
-      doctor: "Dr. Michael Rodriguez",
-    },
-    {
-      id: "pres2",
-      date: "2024-03-15",
-      medicine: "Metformin",
-      dosage: "500mg",
-      frequency: "Twice daily",
-      duration: "90 days",
-      doctor: "Dr. Sarah Johnson",
-    },
-  ],
-};
-
 const PatientDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [patient, setPatient] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [labReports, setLabReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("appointments");
   const [showLabTestModal, setShowLabTestModal] = useState(false);
+  const [selectedLabReport, setSelectedLabReport] = useState(null);
+  const [showLabReportModal, setShowLabReportModal] = useState(false);
 
   useEffect(() => {
     // Fetch patient data and appointments
     const fetchData = async () => {
       try {
         setLoading(true);
+        console.log("Fetching patient with ID:", id);
 
-        // In a real app, you would fetch patient data from your API
-        // For now, use the mock patient data with ID substituted
-        const patientData = { ...mockPatient, id };
+        // Fetch patient data from mockApi
+        try {
+          const patientData = await mockApi.getPatientById(id);
+          console.log("Fetched patient data:", patientData);
+
+          // Transform the patient data to match the expected format
+          const formattedPatient = {
+            id: patientData._id,
+            firstName: patientData.firstName || patientData.name.split(" ")[0],
+            lastName:
+              patientData.lastName ||
+              patientData.name.split(" ").slice(1).join(" "),
+            gender: patientData.gender || "Not specified",
+            birthDate: patientData.dateOfBirth || "1985-01-01",
+            age: patientData.age || calculateAge(patientData.dateOfBirth) || 35,
+            bloodGroup: patientData.bloodGroup || "Not specified",
+            contactNumber: patientData.contactNumber || "Not provided",
+            email: patientData.email || "Not provided",
+            address: {
+              street:
+                patientData.address && typeof patientData.address === "string"
+                  ? patientData.address.split(",")[0]
+                  : "Not provided",
+              city:
+                patientData.address && typeof patientData.address === "string"
+                  ? patientData.address.split(",")[1]?.trim() || "Not provided"
+                  : "Not provided",
+              state:
+                patientData.address && typeof patientData.address === "string"
+                  ? patientData.address.split(",")[2]?.trim() || "Not provided"
+                  : "Not provided",
+              zip:
+                patientData.address && typeof patientData.address === "string"
+                  ? patientData.address.split(",")[3]?.trim() || "Not provided"
+                  : "Not provided",
+              country: "USA",
+            },
+            emergencyContact: {
+              name: "Emergency Contact",
+              relationship: "Family",
+              contactNumber: patientData.contactNumber || "Not provided",
+            },
+            insurance: {
+              provider: "Health Insurance",
+              policyNumber: patientData.aadhaarNumber || "Not provided",
+              expiryDate: "2025-12-31",
+            },
+            allergies: patientData.allergies || ["None reported"],
+            chronicConditions: patientData.chronicConditions || [
+              "None reported",
+            ],
+            medicalRecords: patientData.medicalRecords || [],
+            prescriptions: patientData.prescriptions || [],
+          };
+
+          setPatient(formattedPatient);
+        } catch (error) {
+          console.error("Error fetching patient:", error);
+          // Fallback to a default patient if the API call fails
+          alert(`Could not find patient with ID: ${id}. Using default data.`);
+          setPatient({
+            id: id,
+            firstName: "Unknown",
+            lastName: "Patient",
+            gender: "Not specified",
+            birthDate: "1985-01-01",
+            age: 35,
+            bloodGroup: "Not specified",
+            contactNumber: "Not provided",
+            email: "Not provided",
+            address: {
+              street: "Not provided",
+              city: "Not provided",
+              state: "Not provided",
+              zip: "Not provided",
+              country: "USA",
+            },
+            emergencyContact: {
+              name: "Not provided",
+              relationship: "Not provided",
+              contactNumber: "Not provided",
+            },
+            insurance: {
+              provider: "Not provided",
+              policyNumber: "Not provided",
+              expiryDate: "Not provided",
+            },
+            allergies: ["None reported"],
+            chronicConditions: ["None reported"],
+            medicalRecords: [],
+            prescriptions: [],
+          });
+        }
 
         // Fetch appointments from mockApi
         const appointmentsResponse = await mockApi.getAppointments({
@@ -403,13 +429,25 @@ const PatientDetails = () => {
             time: appointment.startTime,
             reason: appointment.reason || "Consultation",
             doctor: appointment.doctor?.name || "Unknown Doctor",
-            department: "General Medicine", // You may fetch department details if needed
+            department: appointment.department?.name || "General Medicine",
             status: appointment.status,
           })
         );
 
-        setPatient(patientData);
         setAppointments(formattedAppointments);
+
+        // Fetch lab reports
+        try {
+          const labReportsResponse = await mockApi.getLabReports({
+            patient: id,
+          });
+          console.log("Fetched lab reports:", labReportsResponse);
+          setLabReports(labReportsResponse);
+        } catch (error) {
+          console.error("Error fetching lab reports:", error);
+          setLabReports([]);
+        }
+
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -453,6 +491,12 @@ const PatientDetails = () => {
   const getDay = (dateString) => {
     const date = new Date(dateString);
     return date.getDate();
+  };
+
+  // Add a function to handle viewing a lab report
+  const handleViewLabReport = (report) => {
+    setSelectedLabReport(report);
+    setShowLabReportModal(true);
   };
 
   if (loading) {
@@ -617,7 +661,11 @@ const PatientDetails = () => {
           </PatientProfileCard>
         </motion.div>
 
-        <motion.div variants={childVariants}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ width: "100%" }}
+        >
           <TabsContainer>
             <Tab
               active={activeTab === "appointments"}
@@ -630,6 +678,12 @@ const PatientDetails = () => {
               onClick={() => setActiveTab("medicalRecords")}
             >
               Medical Records
+            </Tab>
+            <Tab
+              active={activeTab === "labReports"}
+              onClick={() => setActiveTab("labReports")}
+            >
+              Lab Reports
             </Tab>
             <Tab
               active={activeTab === "prescriptions"}
@@ -796,6 +850,92 @@ const PatientDetails = () => {
             </MedicalInfoCard>
           </TabPanel>
 
+          <TabPanel active={activeTab === "labReports"}>
+            <MedicalInfoCard variants={childVariants}>
+              <SectionTitle>
+                <FaVial /> Lab Reports
+              </SectionTitle>
+              {labReports.length > 0 ? (
+                labReports.map((report) => (
+                  <div key={report._id} style={{ marginBottom: "20px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <h4 style={{ margin: 0 }}>{report.reportType}</h4>
+                      <span style={{ fontSize: "0.85rem", color: "#666" }}>
+                        {formatDate(report.date)}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        marginBottom: "10px",
+                        padding: "10px",
+                        backgroundColor: "#f8f9fa",
+                        borderRadius: "5px",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => handleViewLabReport(report)}
+                    >
+                      {report.results &&
+                        Object.entries(report.results).map(
+                          ([key, value], index) =>
+                            // Only show first 3 results in the preview
+                            index < 3 && (
+                              <div
+                                key={key}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  padding: "5px 0",
+                                  borderBottom: "1px solid #eee",
+                                }}
+                              >
+                                <span style={{ fontWeight: "500" }}>
+                                  {key}:
+                                </span>
+                                <span>{value}</span>
+                              </div>
+                            )
+                        )}
+
+                      {report.results &&
+                        Object.keys(report.results).length > 3 && (
+                          <div
+                            style={{
+                              textAlign: "center",
+                              padding: "5px 0",
+                              color: "#2196f3",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Click to view all results...
+                          </div>
+                        )}
+                    </div>
+
+                    {report.notes && (
+                      <p style={{ margin: "8px 0", fontSize: "0.9rem" }}>
+                        Notes: {report.notes}
+                      </p>
+                    )}
+
+                    <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                      Technician: {report.technician?.name || "Unknown"}
+                    </div>
+                    <Divider />
+                  </div>
+                ))
+              ) : (
+                <p>No lab reports available for this patient.</p>
+              )}
+            </MedicalInfoCard>
+          </TabPanel>
+
           <TabPanel active={activeTab === "medicalInfo"}>
             <MedicalInfoCard variants={childVariants}>
               <SectionTitle>Allergies</SectionTitle>
@@ -823,6 +963,13 @@ const PatientDetails = () => {
         isOpen={showLabTestModal}
         onClose={() => setShowLabTestModal(false)}
         patient={patient}
+      />
+
+      {/* ViewLabReport Modal */}
+      <ViewLabReport
+        isOpen={showLabReportModal}
+        onClose={() => setShowLabReportModal(false)}
+        report={selectedLabReport}
       />
     </PageTransition>
   );
