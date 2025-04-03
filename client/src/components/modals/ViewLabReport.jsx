@@ -191,31 +191,28 @@ const formatDate = (dateString) => {
 const ViewLabReport = ({ isOpen, onClose, report }) => {
   if (!report) return null;
 
-  // Create date object from report date
-  const reportDate = new Date(report.date);
-
   // Format reportDate as a readable string
-  const formattedDate = formatDate(report.date);
+  const formattedDate = formatDate(report.date || new Date().toISOString());
 
-  // Check if results is an object and has entries
-  const hasResults =
-    report.results &&
-    typeof report.results === "object" &&
-    Object.keys(report.results).length > 0;
+  // Extract results data from the lab report
+  const hasResults = report.results && Object.keys(report.results).length > 0;
+  const hasComponents = report.components && report.components.length > 0;
 
-  // Try to extract reference ranges for common parameters
-  const getReferenceRange = (parameter) => {
-    const ranges = {
-      Hemoglobin: "Males: 13.5-17.5 g/dL, Females: 12.0-15.5 g/dL",
-      "White Blood Cells": "4.5-11.0 thousand/μL",
-      Platelets: "150-450 thousand/μL",
-      Glucose: "Fasting: 70-99 mg/dL",
-      Cholesterol: "<200 mg/dL",
-      pH: "4.5-8.0",
-    };
+  // Choose which data source to use for display
+  let displayResults = [];
 
-    return ranges[parameter] || "Not specified";
-  };
+  if (hasComponents) {
+    // If we have components array, use that (preferred format)
+    displayResults = report.components;
+  } else if (hasResults) {
+    // Otherwise convert the results object to an array
+    displayResults = Object.entries(report.results).map(([name, value]) => ({
+      name,
+      value,
+      unit: report.units?.[name] || "",
+      flagged: report.flaggedResults?.[name] || false,
+    }));
+  }
 
   return (
     <AnimatePresence>
@@ -238,63 +235,87 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
 
             <ReportHeader>
               <Title>
-                <FaVial /> {report.reportType || "Lab Report"}
+                <FaVial />{" "}
+                {report.testType || report.type || "Laboratory Report"}
               </Title>
+              <div style={{ color: "#666", fontSize: "0.9rem" }}>
+                {formattedDate}
+              </div>
             </ReportHeader>
 
             <InfoGrid>
               <InfoCard>
                 <InfoTitle>
-                  <FaUser /> Patient
+                  <FaUser /> Patient Information
+                </InfoTitle>
+                <InfoValue>{report.patientName || "Unknown"}</InfoValue>
+                <div
+                  style={{
+                    fontSize: "0.9rem",
+                    color: "#666",
+                    marginTop: "4px",
+                  }}
+                >
+                  ID: {report.patientId || "Not specified"}
+                </div>
+              </InfoCard>
+
+              <InfoCard>
+                <InfoTitle>
+                  <FaCalendarAlt /> Test Details
                 </InfoTitle>
                 <InfoValue>
-                  {report.patient?.name || "Unknown Patient"}
+                  {report.testType || report.type || "Laboratory Test"}
                 </InfoValue>
-              </InfoCard>
-
-              <InfoCard>
-                <InfoTitle>
-                  <FaCalendarAlt /> Date
-                </InfoTitle>
-                <InfoValue>{formattedDate}</InfoValue>
-              </InfoCard>
-
-              <InfoCard>
-                <InfoTitle>
-                  <FaFileMedical /> Test Type
-                </InfoTitle>
-                <InfoValue>{report.reportType}</InfoValue>
-              </InfoCard>
-
-              <InfoCard>
-                <InfoTitle>
-                  <FaUser /> Technician
-                </InfoTitle>
-                <InfoValue>
-                  {report.technician?.name || "Unknown Technician"}
-                </InfoValue>
+                <div
+                  style={{
+                    fontSize: "0.9rem",
+                    color: "#666",
+                    marginTop: "4px",
+                  }}
+                >
+                  Collected: {formattedDate}
+                </div>
               </InfoCard>
             </InfoGrid>
 
-            {hasResults && (
-              <ResultsTable>
-                <h3>Test Results</h3>
+            <ResultsTable>
+              <ResultsRow>
+                <ResultsCell flex="2">Parameter</ResultsCell>
+                <ResultsCell>Result</ResultsCell>
+                <ResultsCell>Reference Range</ResultsCell>
+                <ResultsCell>Status</ResultsCell>
+              </ResultsRow>
 
-                <ResultsRow>
-                  <ResultsCell flex="2">Parameter</ResultsCell>
-                  <ResultsCell>Result</ResultsCell>
-                  <ResultsCell flex="2">Reference Range</ResultsCell>
-                </ResultsRow>
-
-                {Object.entries(report.results).map(([key, value]) => (
-                  <ResultsRow key={key}>
-                    <ResultsCell flex="2">{key}</ResultsCell>
-                    <ResultsCell>{value}</ResultsCell>
-                    <ResultsCell flex="2">{getReferenceRange(key)}</ResultsCell>
+              {displayResults.length > 0 ? (
+                displayResults.map((item, index) => (
+                  <ResultsRow key={index}>
+                    <ResultsCell flex="2">{item.name}</ResultsCell>
+                    <ResultsCell>
+                      {item.value} {item.unit}
+                    </ResultsCell>
+                    <ResultsCell>
+                      {item.referenceRange || "Not specified"}
+                    </ResultsCell>
+                    <ResultsCell>
+                      {item.flagged ? (
+                        <span style={{ color: "#e53935", fontWeight: 600 }}>
+                          Abnormal
+                        </span>
+                      ) : (
+                        <span style={{ color: "#4caf50" }}>Normal</span>
+                      )}
+                    </ResultsCell>
                   </ResultsRow>
-                ))}
-              </ResultsTable>
-            )}
+                ))
+              ) : (
+                <ResultsRow>
+                  <ResultsCell colSpan="4" style={{ textAlign: "center" }}>
+                    No detailed results available
+                  </ResultsCell>
+                </ResultsRow>
+              )}
+            </ResultsTable>
 
             {report.notes && (
               <Notes>
@@ -304,7 +325,7 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
             )}
 
             <ActionButtons>
-              <Button variant="secondary" onClick={() => window.print()}>
+              <Button variant="secondary">
                 <FaPrint /> Print Report
               </Button>
               <Button>

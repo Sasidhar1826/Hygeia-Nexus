@@ -16,11 +16,25 @@ import {
   FaUser,
   FaFlask,
   FaVial,
+  FaBrain,
+  FaHistory,
+  FaHeartbeat,
+  FaChartLine,
+  FaFileAlt,
 } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import RequestLabTest from "../components/modals/RequestLabTest";
 import ViewLabReport from "../components/modals/ViewLabReport";
+import SmartDiagnosisModal from "../components/modals/SmartDiagnosisModal";
+import AIDiagnosticHistoryModal from "../components/modals/AIDiagnosticHistoryModal";
+import PrescriptionModal from "../components/modals/PrescriptionModal";
 import mockApi from "../services/mockApi";
+import MedicalReportCard from "../components/medical/MedicalReportCard";
+import LabReportCard from "../components/medical/LabReportCard";
+import {
+  getFormattedLabReports,
+  getFormattedMedicalRecords,
+} from "../services/medicalDataFormatters";
 
 const PageHeader = styled.div`
   display: flex;
@@ -174,35 +188,64 @@ const DetailValue = styled.span`
   font-weight: 500;
 `;
 
-const TabsContainer = styled.div`
-  display: flex;
-  border-bottom: 1px solid ${(props) => props.theme.colors.border.main};
+const TabsWrapper = styled.div`
+  width: 100%;
   margin-bottom: ${(props) => props.theme.spacing(4)};
 `;
 
-const Tab = styled.button`
+const TabsHeader = styled.div`
+  display: flex;
+  border-bottom: 1px solid ${(props) => props.theme.colors.border.main};
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+`;
+
+const TabButton = styled.button`
   padding: ${(props) => props.theme.spacing(2)}
     ${(props) => props.theme.spacing(4)};
-  border: none;
   background: none;
-  font-weight: ${(props) => (props.active ? "600" : "400")};
+  border: none;
+  white-space: nowrap;
+  font-size: 1rem;
+  font-weight: ${(props) => (props.$isActive ? "600" : "400")};
   color: ${(props) =>
-    props.active
+    props.$isActive
       ? props.theme.colors.primary.main
       : props.theme.colors.text.secondary};
-  border-bottom: 2px solid
+  border-bottom: 3px solid
     ${(props) =>
-      props.active ? props.theme.colors.primary.main : "transparent"};
+      props.$isActive ? props.theme.colors.primary.main : "transparent"};
+  transition: all 0.2s ease;
   cursor: pointer;
-  transition: all 0.2s;
 
   &:hover {
     color: ${(props) => props.theme.colors.primary.main};
+    background-color: ${(props) => props.theme.colors.background.hover};
+  }
+
+  &:focus {
+    outline: none;
+    background-color: ${(props) => props.theme.colors.background.hover};
+  }
+
+  svg {
+    margin-right: ${(props) => props.theme.spacing(1)};
+    vertical-align: middle;
   }
 `;
 
-const TabPanel = styled.div`
-  display: ${(props) => (props.active ? "block" : "none")};
+const TabContent = styled(motion.div)`
+  background-color: ${(props) => props.theme.colors.background.default};
+  padding-top: ${(props) => props.theme.spacing(3)};
 `;
 
 const MedicalInfoCard = styled(motion.div)`
@@ -276,7 +319,7 @@ const AppointmentStatus = styled.div`
   font-size: 0.8rem;
   font-weight: 500;
   background-color: ${(props) => {
-    switch (props.status) {
+    switch (props.$status) {
       case "scheduled":
         return props.theme.colors.status.infoLight;
       case "completed":
@@ -288,7 +331,7 @@ const AppointmentStatus = styled.div`
     }
   }};
   color: ${(props) => {
-    switch (props.status) {
+    switch (props.$status) {
       case "scheduled":
         return props.theme.colors.status.info;
       case "completed":
@@ -300,6 +343,97 @@ const AppointmentStatus = styled.div`
     }
   }};
 `;
+
+// New styled components for the summary card
+const SummaryCard = styled.div`
+  background-color: ${(props) => props.theme.colors.background.paper};
+  border-radius: ${(props) => props.theme.borderRadius.medium};
+  box-shadow: ${(props) => props.theme.shadows.small};
+  padding: ${(props) => props.theme.spacing(3)};
+  margin-bottom: ${(props) => props.theme.spacing(3)};
+  border-left: 4px solid ${(props) => props.theme.colors.primary.main};
+`;
+
+const SummaryHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: ${(props) => props.theme.spacing(2)};
+
+  svg {
+    color: ${(props) => props.theme.colors.primary.main};
+    font-size: 1.5rem;
+    margin-right: ${(props) => props.theme.spacing(1)};
+  }
+
+  h3 {
+    margin: 0;
+    color: ${(props) => props.theme.colors.text.primary};
+  }
+`;
+
+const SummaryContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing(2)};
+`;
+
+const SummaryItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${(props) => props.theme.spacing(1)};
+
+  svg {
+    color: ${(props) => props.theme.colors.primary.main};
+  }
+
+  span {
+    color: ${(props) => props.theme.colors.text.secondary};
+  }
+`;
+
+// Implement the Tabs system
+const Tabs = ({ children, activeTab, setActiveTab }) => {
+  // Extract tabs from children
+  const tabs = React.Children.toArray(children).filter(
+    (child) => child.type === Tab
+  );
+
+  return (
+    <TabsWrapper>
+      <TabsHeader>
+        {tabs.map((tab, index) => (
+          <TabButton
+            key={tab.props.id || index}
+            $isActive={activeTab === (tab.props.id || index)}
+            onClick={() => setActiveTab(tab.props.id || index)}
+          >
+            {tab.props.icon && (
+              <span className="tab-icon">{tab.props.icon}</span>
+            )}
+            {tab.props.label}
+          </TabButton>
+        ))}
+      </TabsHeader>
+      <TabContent
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        {tabs.find(
+          (tab) => tab.props.id === activeTab || tabs.indexOf(tab) === activeTab
+        )}
+      </TabContent>
+    </TabsWrapper>
+  );
+};
+
+const Tab = ({ children, id, label, icon }) => {
+  return (
+    <div role="tabpanel" id={`tabpanel-${id}`}>
+      {children}
+    </div>
+  );
+};
 
 const PatientDetails = () => {
   const { id } = useParams();
@@ -313,150 +447,183 @@ const PatientDetails = () => {
   const [showLabTestModal, setShowLabTestModal] = useState(false);
   const [selectedLabReport, setSelectedLabReport] = useState(null);
   const [showLabReportModal, setShowLabReportModal] = useState(false);
+  const [showSmartDiagnosisModal, setShowSmartDiagnosisModal] = useState(false);
+  const [showAIDiagnosticHistoryModal, setShowAIDiagnosticHistoryModal] =
+    useState(false);
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const [patientSummary, setPatientSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
-  useEffect(() => {
-    // Fetch patient data and appointments
-    const fetchData = async () => {
+  // Extract fetchData function outside of useEffect so it can be reused
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      console.log("Fetching patient with ID:", id);
+
+      // Fetch patient data from mockApi
       try {
-        setLoading(true);
-        console.log("Fetching patient with ID:", id);
+        const patientData = await mockApi.getPatientById(id);
+        console.log("Fetched patient data:", patientData);
 
-        // Fetch patient data from mockApi
-        try {
-          const patientData = await mockApi.getPatientById(id);
-          console.log("Fetched patient data:", patientData);
+        if (patientData) {
+          // Calculate age from birthDate
+          if (patientData.birthDate) {
+            patientData.age = calculateAge(patientData.birthDate);
+          }
 
-          // Transform the patient data to match the expected format
-          const formattedPatient = {
-            id: patientData._id,
-            firstName: patientData.firstName || patientData.name.split(" ")[0],
-            lastName:
-              patientData.lastName ||
-              patientData.name.split(" ").slice(1).join(" "),
-            gender: patientData.gender || "Not specified",
-            birthDate: patientData.dateOfBirth || "1985-01-01",
-            age: patientData.age || calculateAge(patientData.dateOfBirth) || 35,
-            bloodGroup: patientData.bloodGroup || "Not specified",
-            contactNumber: patientData.contactNumber || "Not provided",
-            email: patientData.email || "Not provided",
-            address: {
-              street:
-                patientData.address && typeof patientData.address === "string"
-                  ? patientData.address.split(",")[0]
-                  : "Not provided",
-              city:
-                patientData.address && typeof patientData.address === "string"
-                  ? patientData.address.split(",")[1]?.trim() || "Not provided"
-                  : "Not provided",
-              state:
-                patientData.address && typeof patientData.address === "string"
-                  ? patientData.address.split(",")[2]?.trim() || "Not provided"
-                  : "Not provided",
-              zip:
-                patientData.address && typeof patientData.address === "string"
-                  ? patientData.address.split(",")[3]?.trim() || "Not provided"
-                  : "Not provided",
-              country: "USA",
-            },
-            emergencyContact: {
-              name: "Emergency Contact",
-              relationship: "Family",
-              contactNumber: patientData.contactNumber || "Not provided",
-            },
-            insurance: {
-              provider: "Health Insurance",
-              policyNumber: patientData.aadhaarNumber || "Not provided",
-              expiryDate: "2025-12-31",
-            },
-            allergies: patientData.allergies || ["None reported"],
-            chronicConditions: patientData.chronicConditions || [
-              "None reported",
-            ],
-            medicalRecords: patientData.medicalRecords || [],
-            prescriptions: patientData.prescriptions || [],
-          };
+          // Initialize empty arrays for properties that should be arrays
+          patientData.medicalRecords = patientData.medicalRecords || [];
+          patientData.prescriptions = patientData.prescriptions || [];
+          patientData.allergies = patientData.allergies || [];
+          patientData.chronicConditions = patientData.chronicConditions || [];
 
-          setPatient(formattedPatient);
-        } catch (error) {
-          console.error("Error fetching patient:", error);
-          // Fallback to a default patient if the API call fails
-          alert(`Could not find patient with ID: ${id}. Using default data.`);
-          setPatient({
-            id: id,
-            firstName: "Unknown",
-            lastName: "Patient",
-            gender: "Not specified",
-            birthDate: "1985-01-01",
-            age: 35,
-            bloodGroup: "Not specified",
-            contactNumber: "Not provided",
-            email: "Not provided",
-            address: {
-              street: "Not provided",
-              city: "Not provided",
-              state: "Not provided",
-              zip: "Not provided",
-              country: "USA",
-            },
-            emergencyContact: {
-              name: "Not provided",
-              relationship: "Not provided",
-              contactNumber: "Not provided",
-            },
-            insurance: {
-              provider: "Not provided",
-              policyNumber: "Not provided",
-              expiryDate: "Not provided",
-            },
-            allergies: ["None reported"],
-            chronicConditions: ["None reported"],
-            medicalRecords: [],
-            prescriptions: [],
-          });
+          setPatient(patientData);
+
+          // Fetch patient summary data
+          try {
+            setSummaryLoading(true);
+            const summary = await mockApi.getPatientSummary(id);
+            if (summary) {
+              setPatientSummary(summary);
+            } else {
+              console.log("No patient summary data returned");
+            }
+            setSummaryLoading(false);
+          } catch (error) {
+            console.error("Error fetching patient summary:", error);
+            setSummaryLoading(false);
+          }
+        } else {
+          throw new Error("Patient not found");
         }
+      } catch (error) {
+        console.error("Error fetching patient:", error);
+        setLoading(false);
+        // handle error - redirect or show error message
+        return;
+      }
 
-        // Fetch appointments from mockApi
+      // Fetch appointments from mockApi
+      try {
         const appointmentsResponse = await mockApi.getAppointments({
           patient: id,
         });
         console.log("Fetched appointments:", appointmentsResponse);
 
-        // Format the appointments for display
-        const formattedAppointments = appointmentsResponse.map(
-          (appointment) => ({
-            id: appointment._id,
-            date: appointment.appointmentDate,
-            time: appointment.startTime,
-            reason: appointment.reason || "Consultation",
-            doctor: appointment.doctor?.name || "Unknown Doctor",
-            department: appointment.department?.name || "General Medicine",
-            status: appointment.status,
-          })
-        );
+        if (Array.isArray(appointmentsResponse)) {
+          // Format the appointments for display
+          const formattedAppointments = appointmentsResponse.map(
+            (appointment) => ({
+              id: appointment._id || `app-${Math.random()}`,
+              date: appointment.appointmentDate || new Date().toISOString(),
+              time: appointment.startTime || "Not specified",
+              reason: appointment.reason || "Consultation",
+              doctor: appointment.doctor?.name || "Unknown Doctor",
+              department: appointment.department?.name || "General Medicine",
+              status: appointment.status || "scheduled",
+            })
+          );
 
-        setAppointments(formattedAppointments);
+          setAppointments(formattedAppointments);
+        } else {
+          console.error(
+            "Appointments response is not an array:",
+            appointmentsResponse
+          );
+          setAppointments([]);
+        }
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        setAppointments([]);
+      }
 
-        // Fetch lab reports
-        try {
-          const labReportsResponse = await mockApi.getLabReports({
-            patient: id,
+      // Fetch medical records using the new formatter
+      try {
+        const medicalRecordsResponse = await getFormattedMedicalRecords(id);
+        console.log("Fetched medical records:", medicalRecordsResponse);
+
+        if (Array.isArray(medicalRecordsResponse)) {
+          // Update the patient object with the formatted medical records
+          setPatient((prevPatient) => {
+            if (!prevPatient) return null;
+            return {
+              ...prevPatient,
+              medicalRecords: medicalRecordsResponse,
+            };
           });
-          console.log("Fetched lab reports:", labReportsResponse);
-          setLabReports(labReportsResponse);
-        } catch (error) {
-          console.error("Error fetching lab reports:", error);
+        } else {
+          console.error(
+            "Medical records response is not an array:",
+            medicalRecordsResponse
+          );
+          // Ensure patient has empty medicalRecords array as fallback
+          setPatient((prevPatient) => {
+            if (!prevPatient) return null;
+            return {
+              ...prevPatient,
+              medicalRecords: [],
+            };
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching medical records:", error);
+        // Ensure patient has empty medicalRecords array as fallback
+        setPatient((prevPatient) => {
+          if (!prevPatient) return null;
+          return {
+            ...prevPatient,
+            medicalRecords: [],
+          };
+        });
+      }
+
+      // Fetch lab reports using the new formatter
+      try {
+        const labReportsResponse = await getFormattedLabReports(id);
+        console.log("Fetched lab reports:", labReportsResponse);
+
+        if (Array.isArray(labReportsResponse)) {
+          // Make sure each lab report has required fields for the LabReportCard component
+          const processedLabReports = labReportsResponse.map((report) => ({
+            ...report,
+            id: report.id || report._id || `report-${Math.random()}`,
+            testType: report.testType || report.type || "Blood Test",
+            date: report.date || report.testDate || new Date().toISOString(),
+            patientId: report.patientId || id,
+            doctorId: report.doctorId || user?._id,
+            status: report.status || "completed",
+            components: report.components || [],
+            results: report.results || {},
+            hasAbnormalResults:
+              report.hasAbnormalResults === true ||
+              (Array.isArray(report.components) &&
+                report.components.some((comp) => comp.flagged === true)) ||
+              false,
+          }));
+
+          setLabReports(processedLabReports);
+        } else {
+          console.error(
+            "Lab reports response is not an array:",
+            labReportsResponse
+          );
           setLabReports([]);
         }
-
-        setLoading(false);
       } catch (error) {
-        console.error("Error fetching data:", error);
-        setLoading(false);
+        console.error("Error fetching lab reports:", error);
+        setLabReports([]);
       }
-    };
 
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
-  }, [id]);
+  }, [id, user?._id]);
 
   const calculateAge = (birthDate) => {
     const birthDateObj = new Date(birthDate);
@@ -475,28 +642,64 @@ const PatientDetails = () => {
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    if (!dateString) return "Not available";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Invalid date";
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Date error";
+    }
   };
 
   const getMonthAbbreviation = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short" });
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "N/A";
+      return date.toLocaleDateString("en-US", { month: "short" });
+    } catch (error) {
+      console.error("Error getting month abbreviation:", error);
+      return "N/A";
+    }
   };
 
   const getDay = (dateString) => {
-    const date = new Date(dateString);
-    return date.getDate();
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "N/A";
+      return date.getDate();
+    } catch (error) {
+      console.error("Error getting day:", error);
+      return "N/A";
+    }
   };
 
   // Add a function to handle viewing a lab report
   const handleViewLabReport = (report) => {
     setSelectedLabReport(report);
     setShowLabReportModal(true);
+  };
+
+  const handleAddPrescription = () => {
+    console.log("Opening prescription modal");
+    setShowPrescriptionModal(true);
+  };
+
+  const handlePrescriptionModalClose = (wasSuccessful) => {
+    console.log("Closing prescription modal, success:", wasSuccessful);
+    setShowPrescriptionModal(false);
+
+    // If a prescription was successfully added, refresh patient data
+    if (wasSuccessful) {
+      fetchData();
+    }
   };
 
   if (loading) {
@@ -530,6 +733,9 @@ const PatientDetails = () => {
     );
   }
 
+  // Make sure medical records is always an array
+  const medicalRecords = patient.medicalRecords || [];
+
   return (
     <PageTransition>
       <PageHeader>
@@ -540,8 +746,48 @@ const PatientDetails = () => {
         >
           <FaArrowLeft /> Back to Patients
         </BackButton>
-        <Title>{`${patient.firstName} ${patient.lastName}`}</Title>
+        <Title>{`${patient.firstName || ""} ${patient.lastName || ""}`}</Title>
         <ActionButtons>
+          {/* Temporary debug button for prescription */}
+          <Button
+            variant="primary"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              console.log("Debug: Opening prescription modal directly");
+              console.log("Current user:", user);
+              setShowPrescriptionModal(true);
+            }}
+            style={{ marginRight: "8px", background: "orange" }}
+          >
+            Add Prescription
+          </Button>
+
+          {user?.role === "doctor" && (
+            <>
+              <Button
+                variant="primary"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowSmartDiagnosisModal(true)}
+                style={{
+                  backgroundColor: "#10B981",
+                  marginRight: "8px",
+                }}
+              >
+                <FaBrain /> Smart Diagnosis
+              </Button>
+              <Button
+                variant="secondary"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowAIDiagnosticHistoryModal(true)}
+                style={{ marginRight: "8px" }}
+              >
+                <FaHistory /> AI History
+              </Button>
+            </>
+          )}
           <Button
             variant="secondary"
             whileHover={{ scale: 1.05 }}
@@ -562,6 +808,68 @@ const PatientDetails = () => {
         </ActionButtons>
       </PageHeader>
 
+      {/* New Patient Summary Card */}
+      {patientSummary ? (
+        <SummaryCard>
+          <SummaryHeader>
+            <FaChartLine />
+            <h3>Patient Summary</h3>
+          </SummaryHeader>
+          <SummaryContent>
+            {patientSummary.diagnosisSummary && (
+              <SummaryItem>
+                <FaBrain />
+                <span>{patientSummary.diagnosisSummary}</span>
+              </SummaryItem>
+            )}
+            {patientSummary.vitalTrends &&
+              patientSummary.vitalTrends.bloodPressure &&
+              patientSummary.vitalTrends.bloodPressure.length > 0 && (
+                <SummaryItem>
+                  <FaHeartbeat />
+                  <span>
+                    Latest BP:{" "}
+                    {
+                      patientSummary.vitalTrends.bloodPressure[
+                        patientSummary.vitalTrends.bloodPressure.length - 1
+                      ].systolic
+                    }
+                    /
+                    {
+                      patientSummary.vitalTrends.bloodPressure[
+                        patientSummary.vitalTrends.bloodPressure.length - 1
+                      ].diastolic
+                    }{" "}
+                    mmHg
+                  </span>
+                </SummaryItem>
+              )}
+            <SummaryItem>
+              <FaCalendarPlus />
+              <span>
+                {patientSummary?.appointments?.filter(
+                  (a) => a.status === "upcoming" || a.status === "confirmed"
+                ).length || 0}{" "}
+                upcoming appointments
+              </span>
+            </SummaryItem>
+            <SummaryItem>
+              <FaFlask />
+              <span>
+                {patientSummary?.labResults?.length || 0} lab reports available,
+                {patientSummary?.labResults?.reduce(
+                  (count, lab) => count + (lab.abnormalFindings || 0),
+                  0
+                ) || 0}{" "}
+                abnormal findings
+              </span>
+            </SummaryItem>
+          </SummaryContent>
+        </SummaryCard>
+      ) : summaryLoading ? (
+        <SummaryCard>Loading patient summary...</SummaryCard>
+      ) : null}
+
       <ContentContainer>
         <motion.div variants={childVariants}>
           <PatientProfileCard>
@@ -570,10 +878,16 @@ const PatientDetails = () => {
                 <FaUser />
               </AvatarCircle>
             </PatientAvatar>
-            <PatientName>{`${patient.firstName} ${patient.lastName}`}</PatientName>
+            <PatientName>{`${patient.firstName || ""} ${
+              patient.lastName || ""
+            }`}</PatientName>
             <PatientBasicDetails>
-              <PatientBasicInfo>{`${patient.age} years | ${patient.gender}`}</PatientBasicInfo>
-              <PatientBasicInfo>{`Blood Group: ${patient.bloodGroup}`}</PatientBasicInfo>
+              <PatientBasicInfo>{`${patient.age || "Unknown"} years | ${
+                patient.gender || "Unknown"
+              }`}</PatientBasicInfo>
+              <PatientBasicInfo>{`Blood Group: ${
+                patient.bloodGroup || "Unknown"
+              }`}</PatientBasicInfo>
             </PatientBasicDetails>
 
             <Button
@@ -601,19 +915,33 @@ const PatientDetails = () => {
             <DetailsList>
               <DetailItem>
                 <DetailLabel>Email</DetailLabel>
-                <DetailValue>{patient.email}</DetailValue>
+                <DetailValue>{patient.email || "Not provided"}</DetailValue>
               </DetailItem>
               <DetailItem>
                 <DetailLabel>Phone</DetailLabel>
-                <DetailValue>{patient.contactNumber}</DetailValue>
+                <DetailValue>
+                  {patient.contactNumber || "Not provided"}
+                </DetailValue>
               </DetailItem>
               <DetailItem>
                 <DetailLabel>Address</DetailLabel>
-                <DetailValue>{`${patient.address.street}, ${patient.address.city}, ${patient.address.state} ${patient.address.zip}`}</DetailValue>
+                <DetailValue>
+                  {patient.address
+                    ? `${patient.address.street || ""}, ${
+                        patient.address.city || ""
+                      }, ${patient.address.state || ""} ${
+                        patient.address.zip || ""
+                      }`
+                    : "Address not provided"}
+                </DetailValue>
               </DetailItem>
               <DetailItem>
                 <DetailLabel>Birth Date</DetailLabel>
-                <DetailValue>{formatDate(patient.birthDate)}</DetailValue>
+                <DetailValue>
+                  {patient.birthDate
+                    ? formatDate(patient.birthDate)
+                    : "Not provided"}
+                </DetailValue>
               </DetailItem>
             </DetailsList>
 
@@ -623,18 +951,20 @@ const PatientDetails = () => {
             <DetailsList>
               <DetailItem>
                 <DetailLabel>Name</DetailLabel>
-                <DetailValue>{patient.emergencyContact.name}</DetailValue>
+                <DetailValue>
+                  {patient.emergencyContact?.name || "Not provided"}
+                </DetailValue>
               </DetailItem>
               <DetailItem>
                 <DetailLabel>Relationship</DetailLabel>
                 <DetailValue>
-                  {patient.emergencyContact.relationship}
+                  {patient.emergencyContact?.relationship || "Not provided"}
                 </DetailValue>
               </DetailItem>
               <DetailItem>
                 <DetailLabel>Phone</DetailLabel>
                 <DetailValue>
-                  {patient.emergencyContact.contactNumber}
+                  {patient.emergencyContact?.contactNumber || "Not provided"}
                 </DetailValue>
               </DetailItem>
             </DetailsList>
@@ -645,16 +975,22 @@ const PatientDetails = () => {
             <DetailsList>
               <DetailItem>
                 <DetailLabel>Provider</DetailLabel>
-                <DetailValue>{patient.insurance.provider}</DetailValue>
+                <DetailValue>
+                  {patient.insurance?.provider || "Not provided"}
+                </DetailValue>
               </DetailItem>
               <DetailItem>
                 <DetailLabel>Policy Number</DetailLabel>
-                <DetailValue>{patient.insurance.policyNumber}</DetailValue>
+                <DetailValue>
+                  {patient.insurance?.policyNumber || "Not provided"}
+                </DetailValue>
               </DetailItem>
               <DetailItem>
                 <DetailLabel>Expiry Date</DetailLabel>
                 <DetailValue>
-                  {formatDate(patient.insurance.expiryDate)}
+                  {patient.insurance?.expiryDate
+                    ? formatDate(patient.insurance.expiryDate)
+                    : "Not provided"}
                 </DetailValue>
               </DetailItem>
             </DetailsList>
@@ -666,295 +1002,326 @@ const PatientDetails = () => {
           animate={{ opacity: 1, y: 0 }}
           style={{ width: "100%" }}
         >
-          <TabsContainer>
+          <Tabs activeTab={activeTab} setActiveTab={setActiveTab}>
             <Tab
-              active={activeTab === "appointments"}
-              onClick={() => setActiveTab("appointments")}
+              id="appointments"
+              label="Appointments"
+              icon={<FaCalendarPlus />}
             >
-              Appointments
-            </Tab>
-            <Tab
-              active={activeTab === "medicalRecords"}
-              onClick={() => setActiveTab("medicalRecords")}
-            >
-              Medical Records
-            </Tab>
-            <Tab
-              active={activeTab === "labReports"}
-              onClick={() => setActiveTab("labReports")}
-            >
-              Lab Reports
-            </Tab>
-            <Tab
-              active={activeTab === "prescriptions"}
-              onClick={() => setActiveTab("prescriptions")}
-            >
-              Prescriptions
-            </Tab>
-            <Tab
-              active={activeTab === "medicalInfo"}
-              onClick={() => setActiveTab("medicalInfo")}
-            >
-              Medical Info
-            </Tab>
-          </TabsContainer>
-
-          <TabPanel active={activeTab === "appointments"}>
-            <MedicalInfoCard variants={childVariants}>
-              <SectionTitle>
-                <FaCalendarPlus /> Upcoming Appointments
-              </SectionTitle>
-              <AppointmentList>
-                {appointments
-                  .filter(
+              <MedicalInfoCard variants={childVariants}>
+                <SectionTitle>
+                  <FaCalendarPlus /> Upcoming Appointments
+                </SectionTitle>
+                <AppointmentList>
+                  {appointments
+                    .filter(
+                      (app) =>
+                        app.status === "scheduled" ||
+                        app.status === "pending" ||
+                        app.status === "confirmed"
+                    )
+                    .map((appointment) => (
+                      <AppointmentItem
+                        key={appointment.id || `app-${Math.random()}`}
+                      >
+                        <AppointmentDate>
+                          <AppointmentDay>
+                            {getDay(appointment.date)}
+                          </AppointmentDay>
+                          <AppointmentMonth>
+                            {getMonthAbbreviation(appointment.date)}
+                          </AppointmentMonth>
+                        </AppointmentDate>
+                        <AppointmentInfo>
+                          <AppointmentTitle>
+                            {appointment.reason}
+                          </AppointmentTitle>
+                          <AppointmentDetails>
+                            {`${appointment.time || "Not specified"} | ${
+                              appointment.doctor || "Not assigned"
+                            } | ${appointment.department || "General"}`}
+                          </AppointmentDetails>
+                        </AppointmentInfo>
+                        <AppointmentStatus
+                          $status={appointment.status || "scheduled"}
+                        >
+                          {appointment.status
+                            ? appointment.status.charAt(0).toUpperCase() +
+                              appointment.status.slice(1)
+                            : "Scheduled"}
+                        </AppointmentStatus>
+                      </AppointmentItem>
+                    ))}
+                  {appointments.filter(
                     (app) =>
                       app.status === "scheduled" ||
                       app.status === "pending" ||
                       app.status === "confirmed"
-                  )
-                  .map((appointment) => (
-                    <AppointmentItem key={appointment.id}>
-                      <AppointmentDate>
-                        <AppointmentDay>
-                          {getDay(appointment.date)}
-                        </AppointmentDay>
-                        <AppointmentMonth>
-                          {getMonthAbbreviation(appointment.date)}
-                        </AppointmentMonth>
-                      </AppointmentDate>
-                      <AppointmentInfo>
-                        <AppointmentTitle>
-                          {appointment.reason}
-                        </AppointmentTitle>
-                        <AppointmentDetails>
-                          {`${appointment.time} | ${appointment.doctor} | ${appointment.department}`}
-                        </AppointmentDetails>
-                      </AppointmentInfo>
-                      <AppointmentStatus status={appointment.status}>
-                        {appointment.status.charAt(0).toUpperCase() +
-                          appointment.status.slice(1)}
-                      </AppointmentStatus>
-                    </AppointmentItem>
-                  ))}
-                {appointments.filter(
-                  (app) =>
-                    app.status === "scheduled" ||
-                    app.status === "pending" ||
-                    app.status === "confirmed"
-                ).length === 0 && <p>No upcoming appointments</p>}
-              </AppointmentList>
-            </MedicalInfoCard>
+                  ).length === 0 && <p>No upcoming appointments</p>}
+                </AppointmentList>
+              </MedicalInfoCard>
 
-            <MedicalInfoCard variants={childVariants}>
-              <SectionTitle>
-                <FaCalendarPlus /> Past Appointments
-              </SectionTitle>
-              <AppointmentList>
-                {appointments
-                  .filter(
+              <MedicalInfoCard variants={childVariants}>
+                <SectionTitle>
+                  <FaCalendarPlus /> Past Appointments
+                </SectionTitle>
+                <AppointmentList>
+                  {appointments
+                    .filter(
+                      (app) =>
+                        app.status === "completed" || app.status === "cancelled"
+                    )
+                    .map((appointment) => (
+                      <AppointmentItem
+                        key={appointment.id || `app-${Math.random()}`}
+                      >
+                        <AppointmentDate>
+                          <AppointmentDay>
+                            {getDay(appointment.date)}
+                          </AppointmentDay>
+                          <AppointmentMonth>
+                            {getMonthAbbreviation(appointment.date)}
+                          </AppointmentMonth>
+                        </AppointmentDate>
+                        <AppointmentInfo>
+                          <AppointmentTitle>
+                            {appointment.reason}
+                          </AppointmentTitle>
+                          <AppointmentDetails>
+                            {`${appointment.time || "Not specified"} | ${
+                              appointment.doctor || "Not assigned"
+                            } | ${appointment.department || "General"}`}
+                          </AppointmentDetails>
+                        </AppointmentInfo>
+                        <AppointmentStatus
+                          $status={appointment.status || "completed"}
+                        >
+                          {appointment.status
+                            ? appointment.status.charAt(0).toUpperCase() +
+                              appointment.status.slice(1)
+                            : "Completed"}
+                        </AppointmentStatus>
+                      </AppointmentItem>
+                    ))}
+                  {appointments.filter(
                     (app) =>
                       app.status === "completed" || app.status === "cancelled"
-                  )
-                  .map((appointment) => (
-                    <AppointmentItem key={appointment.id}>
-                      <AppointmentDate>
-                        <AppointmentDay>
-                          {getDay(appointment.date)}
-                        </AppointmentDay>
-                        <AppointmentMonth>
-                          {getMonthAbbreviation(appointment.date)}
-                        </AppointmentMonth>
-                      </AppointmentDate>
-                      <AppointmentInfo>
-                        <AppointmentTitle>
-                          {appointment.reason}
-                        </AppointmentTitle>
-                        <AppointmentDetails>
-                          {`${appointment.time} | ${appointment.doctor} | ${appointment.department}`}
-                        </AppointmentDetails>
-                      </AppointmentInfo>
-                      <AppointmentStatus status={appointment.status}>
-                        {appointment.status.charAt(0).toUpperCase() +
-                          appointment.status.slice(1)}
-                      </AppointmentStatus>
-                    </AppointmentItem>
-                  ))}
-                {appointments.filter(
-                  (app) =>
-                    app.status === "completed" || app.status === "cancelled"
-                ).length === 0 && <p>No past appointments</p>}
-              </AppointmentList>
-            </MedicalInfoCard>
-          </TabPanel>
+                  ).length === 0 && <p>No past appointments</p>}
+                </AppointmentList>
+              </MedicalInfoCard>
+            </Tab>
 
-          <TabPanel active={activeTab === "medicalRecords"}>
-            <MedicalInfoCard variants={childVariants}>
-              <SectionTitle>
-                <FaFileMedical /> Medical Records
-              </SectionTitle>
-              {patient.medicalRecords.map((record) => (
-                <div key={record.id} style={{ marginBottom: "20px" }}>
+            <Tab
+              id="medicalRecords"
+              label="Medical Records"
+              icon={<FaFileAlt />}
+            >
+              <MedicalInfoCard variants={childVariants}>
+                <SectionTitle>
+                  <FaFileAlt /> Medical Records
+                </SectionTitle>
+                {patient.medicalRecords && patient.medicalRecords.length > 0 ? (
+                  patient.medicalRecords.map((record) => (
+                    <MedicalReportCard
+                      key={record.id || record._id}
+                      report={record}
+                    />
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      padding: "20px 0",
+                      textAlign: "center",
+                      color: "#666",
+                    }}
+                  >
+                    No medical records available
+                  </div>
+                )}
+              </MedicalInfoCard>
+            </Tab>
+
+            <Tab id="labReports" label="Lab Reports" icon={<FaFlask />}>
+              <MedicalInfoCard variants={childVariants}>
+                <SectionTitle>
+                  <FaFlask /> Laboratory Reports
+                </SectionTitle>
+                {labReports && labReports.length > 0 ? (
+                  labReports.map((report) => (
+                    <LabReportCard
+                      key={report.id || report._id}
+                      report={report}
+                    />
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      padding: "20px 0",
+                      textAlign: "center",
+                      color: "#666",
+                    }}
+                  >
+                    No lab reports available
+                  </div>
+                )}
+
+                {user?.role === "doctor" && (
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "8px",
+                      justifyContent: "flex-end",
+                      marginTop: "20px",
                     }}
                   >
-                    <h4 style={{ margin: 0 }}>{record.type}</h4>
-                    <span style={{ fontSize: "0.85rem", color: "#666" }}>
-                      {formatDate(record.date)}
-                    </span>
-                  </div>
-                  <p style={{ margin: "8px 0", fontSize: "0.9rem" }}>
-                    {record.notes}
-                  </p>
-                  <div style={{ fontSize: "0.85rem", color: "#666" }}>
-                    Doctor: {record.doctor}
-                  </div>
-                  <Divider />
-                </div>
-              ))}
-            </MedicalInfoCard>
-          </TabPanel>
-
-          <TabPanel active={activeTab === "prescriptions"}>
-            <MedicalInfoCard variants={childVariants}>
-              <SectionTitle>
-                <FaFilePrescription /> Prescriptions
-              </SectionTitle>
-              {patient.prescriptions.map((prescription) => (
-                <div key={prescription.id} style={{ marginBottom: "20px" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    <h4 style={{ margin: 0 }}>{prescription.medicine}</h4>
-                    <span style={{ fontSize: "0.85rem", color: "#666" }}>
-                      {formatDate(prescription.date)}
-                    </span>
-                  </div>
-                  <p style={{ margin: "5px 0", fontSize: "0.9rem" }}>
-                    Dosage: {prescription.dosage} | Frequency:{" "}
-                    {prescription.frequency} | Duration: {prescription.duration}
-                  </p>
-                  <div style={{ fontSize: "0.85rem", color: "#666" }}>
-                    Prescribed by: {prescription.doctor}
-                  </div>
-                  <Divider />
-                </div>
-              ))}
-            </MedicalInfoCard>
-          </TabPanel>
-
-          <TabPanel active={activeTab === "labReports"}>
-            <MedicalInfoCard variants={childVariants}>
-              <SectionTitle>
-                <FaVial /> Lab Reports
-              </SectionTitle>
-              {labReports.length > 0 ? (
-                labReports.map((report) => (
-                  <div key={report._id} style={{ marginBottom: "20px" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: "8px",
-                      }}
+                    <Button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowLabTestModal(true)}
                     >
-                      <h4 style={{ margin: 0 }}>{report.reportType}</h4>
-                      <span style={{ fontSize: "0.85rem", color: "#666" }}>
-                        {formatDate(report.date)}
-                      </span>
-                    </div>
+                      <FaFlask /> Request New Lab Test
+                    </Button>
+                  </div>
+                )}
+              </MedicalInfoCard>
+            </Tab>
 
+            <Tab
+              id="prescriptions"
+              label="Prescriptions"
+              icon={<FaFilePrescription />}
+            >
+              <MedicalInfoCard variants={childVariants}>
+                <SectionTitle>
+                  <FaFilePrescription /> Prescriptions
+                </SectionTitle>
+                {console.log("Current user in prescriptions tab:", user)}
+                {Array.isArray(patient?.prescriptions) &&
+                patient.prescriptions.length > 0 ? (
+                  patient.prescriptions.map((prescription) => (
                     <div
-                      style={{
-                        marginBottom: "10px",
-                        padding: "10px",
-                        backgroundColor: "#f8f9fa",
-                        borderRadius: "5px",
-                        cursor: "pointer",
-                      }}
-                      onClick={() => handleViewLabReport(report)}
+                      key={
+                        prescription.id ||
+                        prescription._id ||
+                        `prescription-${Math.random()}`
+                      }
+                      style={{ marginBottom: "20px" }}
                     >
-                      {report.results &&
-                        Object.entries(report.results).map(
-                          ([key, value], index) =>
-                            // Only show first 3 results in the preview
-                            index < 3 && (
-                              <div
-                                key={key}
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  padding: "5px 0",
-                                  borderBottom: "1px solid #eee",
-                                }}
-                              >
-                                <span style={{ fontWeight: "500" }}>
-                                  {key}:
-                                </span>
-                                <span>{value}</span>
-                              </div>
-                            )
-                        )}
-
-                      {report.results &&
-                        Object.keys(report.results).length > 3 && (
-                          <div
-                            style={{
-                              textAlign: "center",
-                              padding: "5px 0",
-                              color: "#2196f3",
-                              fontWeight: "500",
-                            }}
-                          >
-                            Click to view all results...
-                          </div>
-                        )}
-                    </div>
-
-                    {report.notes && (
-                      <p style={{ margin: "8px 0", fontSize: "0.9rem" }}>
-                        Notes: {report.notes}
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        <h4 style={{ margin: 0 }}>
+                          {prescription.medicine || "Unnamed Medication"}
+                        </h4>
+                        <span style={{ fontSize: "0.85rem", color: "#666" }}>
+                          {prescription.date
+                            ? formatDate(prescription.date)
+                            : "No date"}
+                        </span>
+                      </div>
+                      <p style={{ margin: "5px 0", fontSize: "0.9rem" }}>
+                        Dosage: {prescription.dosage || "Not specified"} |
+                        Frequency: {prescription.frequency || "Not specified"} |
+                        Duration: {prescription.duration || "Not specified"}
                       </p>
-                    )}
-
-                    <div style={{ fontSize: "0.85rem", color: "#666" }}>
-                      Technician: {report.technician?.name || "Unknown"}
+                      <div style={{ fontSize: "0.85rem", color: "#666" }}>
+                        Prescribed by: {prescription.doctor || "Unknown doctor"}
+                      </div>
+                      {prescription.instructions && (
+                        <div
+                          style={{
+                            fontSize: "0.9rem",
+                            marginTop: "8px",
+                            padding: "8px",
+                            backgroundColor: "#f8f9fa",
+                            borderRadius: "4px",
+                          }}
+                        >
+                          <strong>Instructions:</strong>{" "}
+                          {prescription.instructions}
+                        </div>
+                      )}
+                      <Divider />
                     </div>
-                    <Divider />
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      padding: "20px 0",
+                      textAlign: "center",
+                      color: "#666",
+                    }}
+                  >
+                    No prescriptions available
                   </div>
-                ))
-              ) : (
-                <p>No lab reports available for this patient.</p>
-              )}
-            </MedicalInfoCard>
-          </TabPanel>
+                )}
 
-          <TabPanel active={activeTab === "medicalInfo"}>
-            <MedicalInfoCard variants={childVariants}>
-              <SectionTitle>Allergies</SectionTitle>
-              <ul>
-                {patient.allergies.map((allergy, index) => (
-                  <li key={index}>{allergy}</li>
-                ))}
-              </ul>
-            </MedicalInfoCard>
+                {console.log("User role for prescription button:", user?.role)}
+                {console.log("Is doctor check:", user?.role === "doctor")}
+                {user?.role === "doctor" ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      marginTop: "20px",
+                    }}
+                  >
+                    <Button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleAddPrescription}
+                      variant="primary"
+                    >
+                      <FaFilePrescription /> Add Prescription
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      marginTop: "20px",
+                      color: "#666",
+                    }}
+                  >
+                    Only doctors can add prescriptions
+                  </div>
+                )}
+              </MedicalInfoCard>
+            </Tab>
 
-            <MedicalInfoCard variants={childVariants}>
-              <SectionTitle>Chronic Conditions</SectionTitle>
-              <ul>
-                {patient.chronicConditions.map((condition, index) => (
-                  <li key={index}>{condition}</li>
-                ))}
-              </ul>
-            </MedicalInfoCard>
-          </TabPanel>
+            <Tab id="medicalInfo" label="Medical Info" icon={<FaFileMedical />}>
+              <MedicalInfoCard variants={childVariants}>
+                <SectionTitle>Allergies</SectionTitle>
+                {Array.isArray(patient?.allergies) &&
+                patient.allergies.length > 0 ? (
+                  <ul>
+                    {patient.allergies.map((allergy, index) => (
+                      <li key={index}>{allergy}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No known allergies</p>
+                )}
+              </MedicalInfoCard>
+
+              <MedicalInfoCard variants={childVariants}>
+                <SectionTitle>Chronic Conditions</SectionTitle>
+                {Array.isArray(patient?.chronicConditions) &&
+                patient.chronicConditions.length > 0 ? (
+                  <ul>
+                    {patient.chronicConditions.map((condition, index) => (
+                      <li key={index}>{condition}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>No chronic conditions</p>
+                )}
+              </MedicalInfoCard>
+            </Tab>
+          </Tabs>
         </motion.div>
       </ContentContainer>
 
@@ -962,7 +1329,8 @@ const PatientDetails = () => {
       <RequestLabTest
         isOpen={showLabTestModal}
         onClose={() => setShowLabTestModal(false)}
-        patient={patient}
+        patientId={id}
+        doctorId={user?._id}
       />
 
       {/* ViewLabReport Modal */}
@@ -970,6 +1338,36 @@ const PatientDetails = () => {
         isOpen={showLabReportModal}
         onClose={() => setShowLabReportModal(false)}
         report={selectedLabReport}
+      />
+
+      {/* SmartDiagnosisModal */}
+      {showSmartDiagnosisModal && (
+        <SmartDiagnosisModal
+          isOpen={showSmartDiagnosisModal}
+          onClose={() => setShowSmartDiagnosisModal(false)}
+          patientId={id}
+          onViewHistory={() => {
+            setShowSmartDiagnosisModal(false);
+            setShowAIDiagnosticHistoryModal(true);
+          }}
+        />
+      )}
+
+      {/* AIDiagnosticHistoryModal */}
+      <AIDiagnosticHistoryModal
+        isOpen={showAIDiagnosticHistoryModal}
+        onClose={() => setShowAIDiagnosticHistoryModal(false)}
+        patientId={id}
+      />
+
+      {/* PrescriptionModal */}
+      <PrescriptionModal
+        isOpen={showPrescriptionModal}
+        onClose={handlePrescriptionModalClose}
+        patientId={id}
+        patientName={patient?.name || "Patient"}
+        doctorId={user?._id}
+        doctorName={user?.name || "Doctor"}
       />
     </PageTransition>
   );

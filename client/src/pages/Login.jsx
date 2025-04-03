@@ -329,9 +329,11 @@ const Login = () => {
         >
           <LogoContainer>
             <FaHospital />
-            <h1>Hygiea Nexus</h1>
+            <h1>Hygenia Nexus</h1>
           </LogoContainer>
-          <FormTitle>Sign In</FormTitle>
+          <FormTitle>Sign in to your account</FormTitle>
+
+          {error && <ErrorMessage>{error}</ErrorMessage>}
 
           <RoleSelector>
             <RoleButton
@@ -376,25 +378,20 @@ const Login = () => {
             </RoleButton>
           </RoleSelector>
 
-          <RoleInfo>
-            <FaInfoCircle />
-            <span>{getRoleDescription()}</span>
-          </RoleInfo>
-
-          {showCredentials && (
-            <DemoCredentials>
-              <strong>Demo Credentials</strong> are pre-filled for the selected
-              role
-            </DemoCredentials>
+          {selectedRole && (
+            <div style={{ marginBottom: "1rem" }}>
+              <RoleInfo>
+                <FaInfoCircle />
+                <span>{getRoleDescription()}</span>
+              </RoleInfo>
+            </div>
           )}
-
-          {error && <ErrorMessage>{error}</ErrorMessage>}
 
           <InputContainer>
             <FaEnvelope />
             <input
               type="email"
-              placeholder="Email"
+              placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -412,24 +409,19 @@ const Login = () => {
             />
           </InputContainer>
 
-          <SubmitButton
-            type="submit"
-            disabled={isLoading}
-            whileTap={{ scale: 0.95 }}
-          >
-            {isLoading ? "Signing In..." : "Sign In"}
-          </SubmitButton>
+          <div style={{ marginTop: "1rem" }}>
+            <SubmitButton
+              type="submit"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              disabled={isLoading}
+            >
+              {isLoading ? "Signing in..." : "Sign In"}
+            </SubmitButton>
+          </div>
 
           <SignupLink>
-            {selectedRole === "patient" ? (
-              <>
-                Don't have an account? <Link to="/patient-signup">Sign Up</Link>
-              </>
-            ) : (
-              <>
-                Staff registration? <Link to="/signup">Register here</Link>
-              </>
-            )}
+            Don't have an account? <Link to="/signup">Create an account</Link>
           </SignupLink>
         </LoginForm>
       </LoginFormContainer>

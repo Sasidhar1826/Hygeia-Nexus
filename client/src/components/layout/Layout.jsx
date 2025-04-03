@@ -229,11 +229,6 @@ const Layout = ({ children, title = "Dashboard" }) => {
       path: "/dashboard/appointments",
     },
     {
-      icon: <FaFileMedical />,
-      text: "Medical Records",
-      path: "/dashboard/medical-records",
-    },
-    {
       icon: <FaVideo />,
       text: "Telemedicine",
       path: "/dashboard/doctor-telemedicine",

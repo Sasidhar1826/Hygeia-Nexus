@@ -1,16 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import styled from "styled-components";
 import { motion } from "framer-motion";
 import {
   FaBrain,
-  FaUpload,
   FaSpinner,
   FaCheckCircle,
   FaExclamationTriangle,
+  FaListAlt,
+  FaRobot,
+  FaPaperPlane,
+  FaInfoCircle,
 } from "react-icons/fa";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
+import mockApi from "../services/mockApi";
 
 const PageContainer = styled.div`
   display: flex;
@@ -18,20 +22,9 @@ const PageContainer = styled.div`
   gap: ${(props) => props.theme.spacing(3)};
 `;
 
-const DiagnosticsGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: ${(props) => props.theme.spacing(3)};
-
-  @media (max-width: 992px) {
-    grid-template-columns: 1fr;
-  }
-`;
-
-const DiagnosticCard = styled(Card)`
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+const MainCardContainer = styled(Card)`
+  position: relative;
+  padding: ${(props) => props.theme.spacing(3)};
 `;
 
 const CardHeader = styled.div`
@@ -52,31 +45,6 @@ const CardHeader = styled.div`
   }
 `;
 
-const UploadArea = styled.div`
-  border: 2px dashed ${(props) => props.theme.colors.background.card};
-  border-radius: ${(props) => props.theme.borderRadius.medium};
-  padding: ${(props) => props.theme.spacing(4)};
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  cursor: pointer;
-  transition: all ${(props) => props.theme.transitions.default};
-  margin-bottom: ${(props) => props.theme.spacing(2)};
-
-  &:hover {
-    border-color: ${(props) => props.theme.colors.primary.main};
-    background-color: ${(props) => props.theme.colors.background.card}30;
-  }
-
-  svg {
-    font-size: 32px;
-    color: ${(props) => props.theme.colors.primary.main};
-    margin-bottom: ${(props) => props.theme.spacing(2)};
-  }
-`;
-
 const ResultCard = styled(Card)`
   margin-top: ${(props) => props.theme.spacing(3)};
   border-left: 4px solid
@@ -86,29 +54,6 @@ const ResultCard = styled(Card)`
         : props.status === "warning"
         ? props.theme.colors.status.warning
         : props.theme.colors.status.info};
-`;
-
-const ResultHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: ${(props) => props.theme.spacing(2)};
-
-  svg {
-    font-size: 24px;
-    color: ${(props) =>
-      props.status === "success"
-        ? props.theme.colors.status.success
-        : props.status === "warning"
-        ? props.theme.colors.status.warning
-        : props.theme.colors.status.info};
-    margin-right: ${(props) => props.theme.spacing(1)};
-  }
-
-  h4 {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0;
-  }
 `;
 
 const SymptomsList = styled.div`
@@ -128,11 +73,157 @@ const SymptomItem = styled.div`
   }
 `;
 
+const SymptomButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${(props) => props.theme.spacing(1)};
+  position: absolute;
+  top: ${(props) => props.theme.spacing(1)};
+  right: ${(props) => props.theme.spacing(1)};
+  padding: ${(props) =>
+    `${props.theme.spacing(0.75)} ${props.theme.spacing(1.5)}`};
+  font-size: 0.85rem;
+`;
+
+const ChatContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+`;
+
+const MessagesContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing(2)};
+  margin-bottom: ${(props) => props.theme.spacing(2)};
+  max-height: 400px;
+  overflow-y: auto;
+  padding: ${(props) => props.theme.spacing(1)};
+`;
+
+const MessageBubble = styled.div`
+  padding: ${(props) => props.theme.spacing(1.5)};
+  border-radius: ${(props) => props.theme.borderRadius.medium};
+  max-width: 80%;
+  word-break: break-word;
+  white-space: pre-line;
+
+  ${(props) =>
+    props.isUser
+      ? `
+    align-self: flex-end;
+    background-color: ${props.theme.colors.primary.main};
+    color: white;
+  `
+      : `
+    align-self: flex-start;
+    background-color: ${props.theme.colors.background.card};
+    border-left: 3px solid ${props.theme.colors.primary.main};
+  `}
+
+  p {
+    margin: ${(props) => props.theme.spacing(0.5)} 0;
+  }
+
+  ul,
+  ol {
+    margin: ${(props) => props.theme.spacing(0.5)} 0;
+    padding-left: ${(props) => props.theme.spacing(2)};
+  }
+
+  strong,
+  b {
+    font-weight: 600;
+  }
+`;
+
+const ChatInputContainer = styled.div`
+  display: flex;
+  margin-top: auto;
+  gap: ${(props) => props.theme.spacing(1)};
+`;
+
+const ChatInput = styled(Input)`
+  flex: 1;
+`;
+
+const SendButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+`;
+
+const MessageSource = styled.div`
+  font-size: 12px;
+  margin-top: ${(props) => props.theme.spacing(0.5)};
+  color: ${(props) => props.theme.colors.text.secondary};
+`;
+
+const ApiAlert = styled.div`
+  background-color: ${(props) =>
+    props.success
+      ? props.theme.colors.status.success + "20"
+      : props.theme.colors.status.warning + "20"};
+  border-left: 3px solid
+    ${(props) =>
+      props.success
+        ? props.theme.colors.status.success
+        : props.theme.colors.status.warning};
+  padding: ${(props) => props.theme.spacing(2)};
+  margin-bottom: ${(props) => props.theme.spacing(2)};
+  border-radius: ${(props) => props.theme.borderRadius.medium};
+  display: ${(props) => (props.visible ? "flex" : "none")};
+  align-items: center;
+  gap: ${(props) => props.theme.spacing(1)};
+
+  svg {
+    color: ${(props) =>
+      props.success
+        ? props.theme.colors.status.success
+        : props.theme.colors.status.warning};
+    font-size: 18px;
+  }
+`;
+
+// Add a spinning animation
+const SpinningIcon = styled(FaSpinner)`
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+`;
+
 const AIDiagnostics = () => {
-  const [uploadedImage, setUploadedImage] = useState(null);
   const [selectedSymptoms, setSelectedSymptoms] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState(null);
+  const [showSymptomSelector, setShowSymptomSelector] = useState(false);
+  const [chatHistory, setChatHistory] = useState([
+    {
+      isUser: false,
+      text: "Hello! I'm your medical assistant. How can I help you today? You can ask me about symptoms, general health questions, or medical information. You can also click the symptom selector button to analyze specific symptoms.",
+      source: "AI Medical Assistant",
+    },
+  ]);
+  const [chatMessage, setChatMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiStatus, setApiStatus] = useState({
+    checked: false,
+    working: false,
+    message: "",
+  });
+  const messagesEndRef = useRef(null);
 
   const symptoms = [
     "Fever",
@@ -149,16 +240,81 @@ const AIDiagnostics = () => {
     "Sore throat",
   ];
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setUploadedImage(e.target.result);
-      };
-      reader.readAsDataURL(file);
+  // API check on component mount
+  useEffect(() => {
+    const checkApiKey = async () => {
+      try {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        console.log(
+          "Environment API key check:",
+          apiKey ? "Found key" : "No key found"
+        );
+
+        if (!apiKey) {
+          setApiStatus({
+            checked: true,
+            working: false,
+            message: "No Gemini API key found in environment variables",
+          });
+          return;
+        }
+
+        // Simple validation - make sure it has the correct format
+        if (!apiKey.startsWith("AIza")) {
+          setApiStatus({
+            checked: true,
+            working: false,
+            message:
+              "Invalid Gemini API key format. Keys should start with 'AIza'",
+          });
+          return;
+        }
+
+        console.log(
+          "Testing Gemini API connection with key:",
+          apiKey.substring(0, 5) + "..." + apiKey.substring(apiKey.length - 5)
+        );
+
+        // Send a simple test message to the Gemini API
+        const testResult = await mockApi.getMedicalChatResponse(
+          "Hello, this is a test message to verify the API connection is working correctly.",
+          []
+        );
+
+        if (testResult && !testResult.error) {
+          console.log("API test successful");
+          setApiStatus({
+            checked: true,
+            working: true,
+            message: "Gemini API connection successful",
+          });
+        } else {
+          console.log("API test failed with error");
+          setApiStatus({
+            checked: true,
+            working: false,
+            message: "Gemini API returned an error. Check console for details",
+          });
+        }
+      } catch (error) {
+        console.error("API key validation error:", error);
+        setApiStatus({
+          checked: true,
+          working: false,
+          message: `Gemini API key issue: ${error.message}`,
+        });
+      }
+    };
+
+    checkApiKey();
+  }, []);
+
+  // Auto-scroll to bottom when chat updates
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  };
+  }, [chatHistory]);
 
   const handleSymptomChange = (symptom) => {
     if (selectedSymptoms.includes(symptom)) {
@@ -168,174 +324,256 @@ const AIDiagnostics = () => {
     }
   };
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
+    if (selectedSymptoms.length === 0) return;
+
     setIsAnalyzing(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsAnalyzing(false);
+    try {
+      // Add the symptom list to chat as user message
+      const symptomsText = selectedSymptoms.join(", ");
+      const userMessage = {
+        isUser: true,
+        text: `I'm experiencing these symptoms: ${symptomsText}`,
+      };
 
-      // Mock results
-      setResults({
-        status: "warning",
-        title: "Possible Respiratory Infection",
-        confidence: 78,
-        details: [
-          "Symptoms suggest possible upper respiratory infection",
-          "Recommend further examination",
-          "Consider chest X-ray to rule out pneumonia",
-        ],
-        recommendations: [
-          "Rest and hydration",
-          "Monitor temperature",
-          "Schedule follow-up in 3 days if symptoms persist",
-        ],
-      });
-    }, 2000);
+      setChatHistory((prev) => [...prev, userMessage]);
+
+      // Get analysis from mockApi
+      const analysisResults = await mockApi.analyzeSymptomsAI(selectedSymptoms);
+
+      // Save the results
+      setResults(analysisResults);
+
+      // Format analysis as assistant response
+      const formattedDetails = analysisResults.details.join("\n• ");
+      const formattedRecommendations =
+        analysisResults.recommendations.join("\n• ");
+
+      const analysisResponse = {
+        isUser: false,
+        text: `Based on the symptoms you reported (${symptomsText}), here's my analysis:\n\n**${analysisResults.title}** (confidence: ${analysisResults.confidence}%)\n\n**Analysis:**\n• ${formattedDetails}\n\n**Recommendations:**\n• ${formattedRecommendations}\n\nThis is an automated analysis and not a medical diagnosis. Please consult a healthcare professional for proper evaluation.`,
+        source: "AI Medical Assistant",
+      };
+
+      setChatHistory((prev) => [...prev, analysisResponse]);
+
+      // Reset symptom selector
+      setShowSymptomSelector(false);
+
+      // Clear selected symptoms after analysis
+      setSelectedSymptoms([]);
+    } catch (error) {
+      console.error("Error analyzing symptoms:", error);
+
+      // Add error message to chat
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          isUser: false,
+          text: "I'm sorry, I encountered an error analyzing your symptoms. Please try again later.",
+          source: "AI Medical Assistant",
+          error: true,
+        },
+      ]);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const toggleSymptomSelector = () => {
+    setShowSymptomSelector(!showSymptomSelector);
+  };
+
+  // Process text to handle markdown-like formatting
+  const formatMessageText = (text) => {
+    // Replace ** with <strong> tags for bold text
+    let formattedText = text
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      // Replace bullet points
+      .replace(/^•\s(.+)$/gm, "<li>$1</li>")
+      // Replace numbered lists
+      .replace(/^\d+\.\s(.+)$/gm, "<li>$1</li>");
+
+    // Wrap lists in <ul> tags when there are list items
+    if (formattedText.includes("<li>")) {
+      formattedText = formattedText.replace(
+        /(<li>.*?<\/li>)\s*(<li>.*?<\/li>)/gs,
+        "<ul>$1$2</ul>"
+      );
+    }
+
+    // Replace newlines with <br>
+    formattedText = formattedText
+      .replace(/\n\n/g, "<br><br>")
+      .replace(/\n/g, "<br>");
+
+    return formattedText;
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!chatMessage.trim()) return;
+
+    // Add user message to chat
+    const userMessage = { isUser: true, text: chatMessage };
+    setChatHistory((prev) => [...prev, userMessage]);
+    setChatMessage("");
+    setIsLoading(true);
+
+    try {
+      // Get response from mockApi - this will use Gemini API if available
+      const response = await mockApi.getMedicalChatResponse(
+        chatMessage,
+        chatHistory
+      );
+
+      // Add AI response to chat
+      setChatHistory((prev) => [...prev, response]);
+    } catch (error) {
+      console.error("Chat error:", error);
+      setChatHistory((prev) => [
+        ...prev,
+        {
+          isUser: false,
+          text: "I'm sorry, I encountered an error processing your request. Please try again later.",
+          source: "AI Medical Assistant",
+          error: true,
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <PageContainer>
-      <h2>AI Diagnostic Tools</h2>
-      <p>Use our AI-powered tools to get preliminary diagnostic insights.</p>
+      <h2>AI Medical Assistant</h2>
+      <p>
+        Chat with our AI assistant about health concerns and receive
+        personalized insights.
+      </p>
 
-      <DiagnosticsGrid>
-        <DiagnosticCard>
-          <CardHeader>
-            <FaBrain />
-            <h3>Symptom Analyzer</h3>
-          </CardHeader>
+      {apiStatus.checked && (
+        <ApiAlert visible success={apiStatus.working}>
+          {apiStatus.working ? (
+            <>
+              <FaCheckCircle /> {apiStatus.message}
+            </>
+          ) : (
+            <>
+              <FaInfoCircle /> {apiStatus.message} Falling back to mock
+              responses.
+            </>
+          )}
+        </ApiAlert>
+      )}
 
-          <p>Select your symptoms for AI analysis:</p>
+      <MainCardContainer>
+        <SymptomButton variant="outlined" onClick={toggleSymptomSelector}>
+          <FaListAlt />{" "}
+          {showSymptomSelector
+            ? "Hide Symptom Selector"
+            : "Show Symptom Selector"}
+        </SymptomButton>
 
-          <SymptomsList>
-            {symptoms.map((symptom) => (
-              <SymptomItem key={symptom}>
-                <input
-                  type="checkbox"
-                  id={symptom}
-                  checked={selectedSymptoms.includes(symptom)}
-                  onChange={() => handleSymptomChange(symptom)}
-                />
-                <label htmlFor={symptom}>{symptom}</label>
-              </SymptomItem>
-            ))}
-          </SymptomsList>
+        <CardHeader>
+          <FaRobot />
+          <h3>Medical Chat Assistant</h3>
+        </CardHeader>
 
-          <Button
-            variant="primary"
-            onClick={handleAnalyze}
-            disabled={selectedSymptoms.length === 0 || isAnalyzing}
-          >
-            {isAnalyzing ? (
-              <>
-                <FaSpinner /> Analyzing...
-              </>
-            ) : (
-              "Analyze Symptoms"
-            )}
-          </Button>
+        {showSymptomSelector && (
+          <div>
+            <p>Select symptoms for analysis:</p>
 
-          {results && (
-            <ResultCard
-              status={results.status}
-              as={motion.div}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <SymptomsList>
+              {symptoms.map((symptom) => (
+                <SymptomItem key={symptom}>
+                  <input
+                    type="checkbox"
+                    id={symptom}
+                    checked={selectedSymptoms.includes(symptom)}
+                    onChange={() => handleSymptomChange(symptom)}
+                  />
+                  <label htmlFor={symptom}>{symptom}</label>
+                </SymptomItem>
+              ))}
+            </SymptomsList>
+
+            <Button
+              variant="primary"
+              onClick={handleAnalyze}
+              disabled={selectedSymptoms.length === 0 || isAnalyzing}
             >
-              <ResultHeader status={results.status}>
-                {results.status === "success" ? (
-                  <FaCheckCircle />
-                ) : results.status === "warning" ? (
-                  <FaExclamationTriangle />
+              {isAnalyzing ? (
+                <>
+                  <SpinningIcon /> Analyzing...
+                </>
+              ) : (
+                "Analyze Symptoms"
+              )}
+            </Button>
+          </div>
+        )}
+
+        <ChatContainer>
+          <MessagesContainer>
+            {chatHistory.map((message, index) => (
+              <MessageBubble key={index} isUser={message.isUser}>
+                {message.isUser ? (
+                  message.text
                 ) : (
-                  <FaBrain />
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: formatMessageText(message.text),
+                    }}
+                  />
                 )}
-                <h4>{results.title}</h4>
-              </ResultHeader>
+                {!message.isUser && message.source && (
+                  <MessageSource>{message.source}</MessageSource>
+                )}
+              </MessageBubble>
+            ))}
+            <div ref={messagesEndRef} />
+          </MessagesContainer>
 
-              <p>Confidence: {results.confidence}%</p>
+          <ChatInputContainer>
+            <ChatInput
+              type="text"
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Type your health question..."
+              disabled={isLoading}
+            />
+            <SendButton
+              variant="primary"
+              onClick={handleSendMessage}
+              disabled={isLoading || !chatMessage.trim()}
+            >
+              {isLoading ? <SpinningIcon /> : <FaPaperPlane />}
+            </SendButton>
+          </ChatInputContainer>
 
-              <div>
-                <h5>Analysis:</h5>
-                <ul>
-                  {results.details.map((detail, index) => (
-                    <li key={index}>{detail}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div>
-                <h5>Recommendations:</h5>
-                <ul>
-                  {results.recommendations.map((rec, index) => (
-                    <li key={index}>{rec}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <p style={{ fontStyle: "italic", marginTop: "16px" }}>
-                Note: This is an AI-generated preliminary assessment and not a
-                medical diagnosis. Please consult with a healthcare
-                professional.
-              </p>
-            </ResultCard>
-          )}
-        </DiagnosticCard>
-
-        <DiagnosticCard>
-          <CardHeader>
-            <FaUpload />
-            <h3>Medical Image Analysis</h3>
-          </CardHeader>
-
-          <p>Upload a medical image for AI analysis:</p>
-
-          <input
-            type="file"
-            id="image-upload"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={handleImageUpload}
-          />
-
-          <label htmlFor="image-upload">
-            <UploadArea>
-              <FaUpload />
-              <p>Click or drag to upload an image</p>
-              <span>Supports JPG, PNG, DICOM formats up to 10MB</span>
-            </UploadArea>
-          </label>
-
-          {uploadedImage && (
-            <div style={{ marginBottom: "16px", textAlign: "center" }}>
-              <img
-                src={uploadedImage}
-                alt="Uploaded medical image"
-                style={{
-                  maxWidth: "100%",
-                  maxHeight: "200px",
-                  borderRadius: "8px",
-                }}
-              />
-            </div>
-          )}
-
-          <Button
-            variant="primary"
-            onClick={handleAnalyze}
-            disabled={!uploadedImage || isAnalyzing}
+          <p
+            style={{
+              fontStyle: "italic",
+              fontSize: "12px",
+              marginTop: "16px",
+            }}
           >
-            {isAnalyzing ? (
-              <>
-                <FaSpinner /> Analyzing...
-              </>
-            ) : (
-              "Analyze Image"
-            )}
-          </Button>
-        </DiagnosticCard>
-      </DiagnosticsGrid>
+            Note: This AI assistant provides general information only and is not
+            a substitute for professional medical advice, diagnosis, or
+            treatment.
+          </p>
+        </ChatContainer>
+      </MainCardContainer>
     </PageContainer>
   );
 };

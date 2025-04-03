@@ -75,14 +75,14 @@ const Tab = styled.button`
   background: none;
   border: none;
   cursor: pointer;
-  font-weight: ${(props) => (props.active ? "600" : "400")};
+  font-weight: ${(props) => (props.$active ? "600" : "400")};
   color: ${(props) =>
-    props.active
+    props.$active
       ? props.theme.colors.primary.main
       : props.theme.colors.text.secondary};
   border-bottom: 2px solid
     ${(props) =>
-      props.active ? props.theme.colors.primary.main : "transparent"};
+      props.$active ? props.theme.colors.primary.main : "transparent"};
   transition: all ${(props) => props.theme.transitions.default};
 
   &:hover {
@@ -353,20 +353,26 @@ const MedicalRecords = () => {
         </TopBar>
 
         <TabsContainer>
-          <Tab active={activeTab === "all"} onClick={() => setActiveTab("all")}>
+          <Tab
+            $active={activeTab === "all"}
+            onClick={() => setActiveTab("all")}
+          >
             All Records
           </Tab>
-          <Tab active={activeTab === "lab"} onClick={() => setActiveTab("lab")}>
+          <Tab
+            $active={activeTab === "lab"}
+            onClick={() => setActiveTab("lab")}
+          >
             Lab Reports
           </Tab>
           <Tab
-            active={activeTab === "diagnosis"}
+            $active={activeTab === "diagnosis"}
             onClick={() => setActiveTab("diagnosis")}
           >
             Diagnoses
           </Tab>
           <Tab
-            active={activeTab === "imaging"}
+            $active={activeTab === "imaging"}
             onClick={() => setActiveTab("imaging")}
           >
             Imaging

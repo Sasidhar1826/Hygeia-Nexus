@@ -1,5 +1,38 @@
 // Mock API service for demonstration
 
+// Function to call Google Gemini API
+const callGeminiAPI = async (prompt, apiKey) => {
+  try {
+    if (!apiKey) {
+      console.warn(
+        "No API key provided for Gemini API. Using mock response."
+      );
+      return "I'm unable to provide a specific analysis based on the limited information.";
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              text: prompt,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
 // Mock user data
 const mockUsers = [
   {
@@ -2173,82 +2206,8 @@ const mockApi = {
     }
   },
 
-  // Near the top of the file, add a new function for Gemini API integration
-
-  // Function to call Google Gemini API
-  callGeminiAPI: async (prompt, apiKey) => {
-    try {
-      if (!apiKey) {
-        console.warn(
-          "No API key provided for Gemini API. Using mock response."
-        );
-        return mockGeminiResponse(prompt);
-      }
-
-      // Use the exact same URL and format as the backend
-      const GEMINI_API_URL =
-        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent";
-      const url = `${GEMINI_API_URL}?key=${apiKey}`;
-
-      // Format messages exactly like the backend does
-      const messages = [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ];
-
-      const requestBody = {
-        contents: messages,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024,
-        },
-      };
-
-      console.log("Making Gemini API request to:", GEMINI_API_URL);
-      console.log("Using API Key:", apiKey ? "Valid key provided" : "No key");
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Gemini API error response:", errorText);
-        throw new Error(
-          `Gemini API error: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const data = await response.json();
-      console.log("API response received with status: OK");
-
-      // Extract text from response exactly like the backend
-      if (
-        data.candidates &&
-        data.candidates[0] &&
-        data.candidates[0].content &&
-        data.candidates[0].content.parts &&
-        data.candidates[0].content.parts[0]
-      ) {
-        return data.candidates[0].content.parts[0].text;
-      } else {
-        console.error(
-          "Unexpected response format:",
-          JSON.stringify(data).substring(0, 200) + "..."
-        );
-        throw new Error("Unexpected response format from Gemini API");
-      }
-    } catch (error) {
-      console.error("Error calling Gemini API:", error);
-      return mockGeminiResponse(prompt);
-    }
-  },
+  // Function to call Google Gemini API - moved outside to be accessible
+  callGeminiAPI,
 
   // Generate a medical diagnostic prompt based on symptoms and patient data
   generateDiagnosticPrompt: (symptoms, patientData, labResults) => {
@@ -2750,106 +2709,20 @@ Include 2-4 potential diagnoses, with varying confidence levels, ordered by conf
     try {
       // Check if Gemini API key is available
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      console.log(
-        "API Key check:",
-        apiKey ? "API key found ✓" : "No API key found ✗"
-      );
 
       if (apiKey) {
+        // Use the real Gemini API
         try {
-          console.log(
-            "Using Gemini API for medical chat with key:",
-            apiKey.substring(0, 5) + "..." + apiKey.substring(apiKey.length - 5)
-          );
-
-          // Format conversation history in the way Gemini expects
-          const formattedMessages = [];
-
-          // Add conversation history
-          if (chatHistory.length > 0) {
-            // Only include the last 3 messages to keep context manageable
-            const recentHistory = chatHistory.slice(-3);
-
-            recentHistory.forEach((msg) => {
-              formattedMessages.push({
-                role: msg.isUser ? "user" : "model",
-                parts: [{ text: msg.text }],
-              });
-            });
-          }
-
-          // Add the current message
-          formattedMessages.push({
-            role: "user",
-            parts: [
-              {
-                text: `${userMessage}\n\nResponse guidelines: Your response should be focused on medical topics only. Provide evidence-based information, be clear about limitations of AI medical advice, and recommend consulting healthcare professionals for specific health concerns. Always be compassionate and professional, focusing on general health education rather than specific diagnostic conclusions.`,
-              },
-            ],
-          });
-
-          // Make API request with conversation history
-          const GEMINI_API_URL =
-            "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent";
-          const url = `${GEMINI_API_URL}?key=${apiKey}`;
-
-          const requestBody = {
-            contents: formattedMessages,
-            generationConfig: {
-              temperature: 0.7,
-              maxOutputTokens: 1024,
-            },
-          };
-
-          console.log(
-            "Sending conversation with",
-            formattedMessages.length,
-            "messages to Gemini API"
-          );
-
-          const response = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(requestBody),
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Gemini API error response:", errorText);
-            throw new Error(
-              `Gemini API error: ${response.status} ${response.statusText}`
-            );
-          }
-
-          const data = await response.json();
-          console.log("Gemini API medical response received successfully");
-
-          if (
-            data.candidates &&
-            data.candidates[0] &&
-            data.candidates[0].content &&
-            data.candidates[0].content.parts &&
-            data.candidates[0].content.parts[0]
-          ) {
-            const assistantResponse = data.candidates[0].content.parts[0].text;
-            return {
-              text: assistantResponse,
-              source: "AI Medical Assistant",
-              isUser: false,
-            };
-          } else {
-            throw new Error("Invalid response format from Gemini API");
-          }
+          console.log("Using Gemini API for medical chat");
+          return await getGeminiMedicalResponse(userMessage, chatHistory);
         } catch (error) {
           console.error("Error with Gemini API, falling back to mock:", error);
           console.log("Falling back to mock response");
-          return await simulateMedicalChatResponse(userMessage);
+          return simulateMedicalChatResponse(userMessage);
         }
       } else {
         console.log("No API key found, using mock response");
-        return await simulateMedicalChatResponse(userMessage);
+        return simulateMedicalChatResponse(userMessage);
       }
     } catch (error) {
       console.error("Error in medical chat:", error);
@@ -2861,781 +2734,249 @@ Include 2-4 potential diagnoses, with varying confidence levels, ordered by conf
     }
   },
 
-  // Function to get response from Gemini API
-  getGeminiMedicalResponse: async (userMessage, chatHistory = []) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Gemini API key not found");
-    }
-
+  // Analyze symptoms and provide diagnostic insights
+  analyzeSymptomsAI: async (selectedSymptoms, userData = null) => {
     try {
-      console.log("Getting medical response with Gemini API");
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-      // Format conversation history in the way Gemini expects
-      const formattedMessages = [];
-
-      // Add conversation history
-      if (chatHistory.length > 0) {
-        // Only include the last 3 messages to keep context manageable
-        const recentHistory = chatHistory.slice(-3);
-
-        recentHistory.forEach((msg) => {
-          formattedMessages.push({
-            role: msg.isUser ? "user" : "model",
-            parts: [{ text: msg.text }],
-          });
-        });
+      if (!apiKey) {
+        console.log("No API key found for symptom analysis, using mock data");
+        return mockSymptomAnalysis(selectedSymptoms);
       }
 
-      // Add the current message
-      formattedMessages.push({
-        role: "user",
-        parts: [
-          {
-            text: `${userMessage}\n\nResponse guidelines: Your response should be focused on medical topics only. Provide evidence-based information, be clear about limitations of AI medical advice, and recommend consulting healthcare professionals for specific health concerns. Always be compassionate and professional, focusing on general health education rather than specific diagnostic conclusions.`,
-          },
-        ],
-      });
-
-      // Make API request with conversation history
-      const GEMINI_API_URL =
-        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent";
-      const url = `${GEMINI_API_URL}?key=${apiKey}`;
-
-      const requestBody = {
-        contents: formattedMessages,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024,
-        },
-      };
-
-      console.log(
-        "Sending conversation with",
-        formattedMessages.length,
-        "messages to Gemini API"
-      );
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Gemini API error response:", errorText);
-        throw new Error(
-          `Gemini API error: ${response.status} ${response.statusText}`
-        );
+      // Extract user data (if provided) to give context to the AI
+      let userContext = "";
+      if (userData) {
+        userContext = `
+Patient Information:
+- Age: ${userData.age || "Unknown"}
+- Gender: ${userData.gender || "Unknown"}
+- Medical History: ${userData.medicalHistory || "None provided"}
+- Current Medications: ${userData.medications || "None provided"}
+- Allergies: ${userData.allergies || "None provided"}
+`;
       }
 
-      const data = await response.json();
-      console.log("Gemini API medical response received successfully");
+      // Prepare prompt for Gemini API
+      const symptomsText = selectedSymptoms.join(", ");
+      const prompt = `As a medical AI assistant, analyze the following symptoms: ${symptomsText}.
+${userContext}
 
-      if (
-        data.candidates &&
-        data.candidates[0] &&
-        data.candidates[0].content &&
-        data.candidates[0].content.parts &&
-        data.candidates[0].content.parts[0]
-      ) {
-        const assistantResponse = data.candidates[0].content.parts[0].text;
-        return {
-          text: assistantResponse,
-          source: "AI Medical Assistant",
-          isUser: false,
-        };
-      } else {
-        throw new Error("Invalid response format from Gemini API");
+Based on these symptoms, provide a structured analysis with the following format:
+1. A "status" categorization as either "info" (general information), "warning" (requires attention), or "success" (positive news)
+2. A concise diagnostic title
+3. A confidence level (percentage between 50-90%)
+4. 2-4 key analytical points about the symptoms and their possible causes
+5. 3-5 practical recommendations
+6. A detailed explanation of why these symptoms might be related and the reasoning behind your assessment
+
+Output should be in JSON format exactly like this example:
+{
+  "status": "warning",
+  "title": "Possible Respiratory Infection",
+  "confidence": 78,
+  "details": [
+    "Symptoms suggest upper respiratory tract infection",
+    "Could be viral or bacterial in origin",
+    "Shortness of breath indicates potential lower respiratory involvement"
+  ],
+  "recommendations": [
+    "Rest and adequate hydration",
+    "Monitor for fever and worsening symptoms",
+    "Seek medical attention if breathing difficulty increases",
+    "Consider over-the-counter symptomatic relief as appropriate"
+  ],
+  "explanation": "The combination of cough and fever often indicates an infectious process in the respiratory system. The presence of shortness of breath suggests that the infection may be affecting the lower respiratory tract, which requires closer monitoring. The symptom pattern is consistent with common viral respiratory infections, but bacterial causes cannot be ruled out without further assessment."
+}`;
+
+      try {
+        console.log("Using Gemini API for symptom analysis");
+        const responseText = await callGeminiAPI(prompt, apiKey);
+
+        // Parse the JSON response from the API
+        try {
+          // Extract JSON from the response text
+          const jsonStart = responseText.indexOf("{");
+          const jsonEnd = responseText.lastIndexOf("}") + 1;
+          const jsonStr = responseText.substring(jsonStart, jsonEnd);
+
+          const analysisResult = JSON.parse(jsonStr);
+
+          // Validate if all required fields are present
+          if (
+            !analysisResult.status ||
+            !analysisResult.title ||
+            !analysisResult.confidence ||
+            !analysisResult.details ||
+            !analysisResult.recommendations
+          ) {
+            throw new Error("Missing required fields in analysis result");
+          }
+
+          return analysisResult;
+        } catch (parseError) {
+          console.error("Error parsing Gemini response:", parseError);
+          console.log("Raw response:", responseText);
+
+          // Fallback to mock data if parsing fails
+          return mockSymptomAnalysis(selectedSymptoms);
+        }
+      } catch (apiError) {
+        console.error("Gemini API error:", apiError);
+        return mockSymptomAnalysis(selectedSymptoms);
       }
     } catch (error) {
-      console.error("Error getting Gemini medical response:", error);
-      console.log("Falling back to mock response");
-      return simulateMedicalChatResponse(userMessage);
+      console.error("General error in symptom analysis:", error);
+      return mockSymptomAnalysis(selectedSymptoms);
     }
   },
 
-  // Analyze symptoms and provide diagnostic insights
-  analyzeSymptomsAI: async (selectedSymptoms) => {
-    await delay(1500); // Simulate API latency
+  // Doctor-specific detailed diagnosis analysis with all patient history
+  getDoctorDiagnosticAnalysis: async (patientId, selectedSymptoms) => {
+    try {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-    const symptomsText = selectedSymptoms.join(", ");
+      if (!apiKey) {
+        console.log("No API key found for doctor diagnosis, using mock data");
+        return mockSymptomAnalysis(selectedSymptoms);
+      }
 
-    // Map common symptom combinations to responses
-    if (
-      selectedSymptoms.includes("Fever") &&
-      selectedSymptoms.includes("Cough")
-    ) {
-      if (selectedSymptoms.includes("Shortness of breath")) {
-        return {
-          status: "warning",
-          title: "Possible Respiratory Infection",
-          confidence: 78,
-          details: [
-            "Symptoms suggest possible respiratory infection",
-            "Shortness of breath may indicate lower respiratory involvement",
-            "Consider COVID-19 testing based on exposure risk",
-          ],
-          recommendations: [
-            "Rest and hydration",
-            "Monitor oxygen levels if possible",
-            "Seek medical care if breathing difficulties worsen",
-            "Self-isolate until diagnosis confirmed",
-          ],
-        };
-      } else {
-        return {
-          status: "info",
-          title: "Upper Respiratory Infection",
-          confidence: 82,
-          details: [
-            "Symptoms consistent with viral upper respiratory infection",
-            "May be common cold or mild seasonal flu",
-          ],
-          recommendations: [
-            "Rest and increased fluid intake",
-            "Over-the-counter fever reducers if needed",
-            "Monitor symptoms for 3-5 days",
-            "Seek care if symptoms worsen or persist beyond 7 days",
-          ],
-        };
+      // Retrieve comprehensive patient data from the system
+      const patient = await mockApi.getPatientById(patientId);
+
+      if (!patient) {
+        throw new Error(`Patient with ID ${patientId} not found`);
       }
-    } else if (
-      selectedSymptoms.includes("Headache") &&
-      selectedSymptoms.includes("Fatigue")
-    ) {
-      if (selectedSymptoms.includes("Nausea")) {
-        return {
-          status: "info",
-          title: "Possible Migraine",
-          confidence: 75,
-          details: [
-            "Symptom pattern suggests migraine headache",
-            "Associated nausea is common with migraines",
-            "May be triggered by stress, diet, or environmental factors",
-          ],
-          recommendations: [
-            "Rest in a quiet, darkened room",
-            "Over-the-counter pain relievers may help",
-            "Track triggers in a symptom diary",
-            "Consider preventive medication if recurrent",
-          ],
-        };
-      }
-    } else if (
-      selectedSymptoms.includes("Abdominal pain") &&
-      (selectedSymptoms.includes("Nausea") ||
-        selectedSymptoms.includes("Dizziness"))
-    ) {
-      return {
-        status: "warning",
-        title: "Gastrointestinal Disturbance",
-        confidence: 70,
-        details: [
-          "Symptoms suggest gastrointestinal irritation",
-          "Could be viral gastroenteritis, food poisoning, or other GI condition",
-          "Dehydration risk present with these symptoms",
-        ],
-        recommendations: [
-          "Small sips of clear fluids to prevent dehydration",
-          "Avoid solid foods until nausea improves",
-          "Gradual return to bland diet",
-          "Seek care if symptoms persist beyond 48 hours or if severe pain occurs",
-        ],
+
+      // Format patient's complete history and data
+      const patientData = {
+        demographics: {
+          age: patient.age || "Unknown",
+          gender: patient.gender || "Unknown",
+          bloodType: patient.bloodType || "Unknown",
+          weight: patient.weight || "Unknown",
+          height: patient.height || "Unknown",
+        },
+        medicalHistory: patient.medicalHistory || [],
+        medications: patient.medications || [],
+        allergies: patient.allergies || [],
+        familyHistory: patient.familyHistory || [],
+        labResults: patient.labResults || [],
+        vitalSigns: patient.vitalSigns || [],
+        previousDiagnoses: patient.previousDiagnoses || [],
+        previousTreatments: patient.previousTreatments || [],
+        lifestyleFactors: {
+          smoking: patient.smokingStatus || "Unknown",
+          alcohol: patient.alcoholConsumption || "Unknown",
+          exercise: patient.exerciseFrequency || "Unknown",
+          diet: patient.dietaryHabits || "Unknown",
+        },
+        recentVisits: patient.appointments
+          ? patient.appointments.slice(0, 5).map((appt) => ({
+              date: appt.date,
+              reason: appt.reason,
+              notes: appt.notes,
+            }))
+          : [],
       };
-    }
 
-    // Default response if no specific pattern matched
-    return {
-      status: "info",
-      title: "General Symptom Assessment",
-      confidence: 65,
-      details: [
-        `Analyzing symptoms: ${symptomsText}`,
-        "Multiple potential causes for this symptom combination",
-        "Insufficient specificity for definitive assessment",
-      ],
-      recommendations: [
-        "Monitor symptoms and track changes",
-        "Note duration, intensity and any additional symptoms",
-        "Consider consultation with healthcare provider for proper evaluation",
-        "Maintain adequate hydration and rest in the meantime",
-      ],
-    };
-  },
-};
+      // Create comprehensive patient history context for the AI
+      const patientContext = JSON.stringify(patientData, null, 2);
 
-// Internal helper functions for enhanced diagnostic suggestions
+      // Prepare prompt for Gemini API with doctor-specific medical terminology
+      const symptomsText = selectedSymptoms.join(", ");
+      const prompt = `As an advanced medical diagnostic AI assistant for physicians, analyze the following patient symptoms: ${symptomsText}.
 
-function extractRecentSymptoms(patientSummary) {
-  // Extract symptoms from the most recent consultation
-  if (patientSummary.consultations.length > 0) {
-    // Sort by date descending and take the first
-    const sortedConsultations = [...patientSummary.consultations].sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    );
+COMPREHENSIVE PATIENT HISTORY AND INFORMATION:
+${patientContext}
 
-    return sortedConsultations[0].symptoms || [];
-  }
+Based on these symptoms and the patient's complete medical history, provide a structured clinical analysis with the following format:
 
-  return [];
-}
+1. DIAGNOSTIC ASSESSMENT:
+   - Primary diagnostic possibilities (ranked by probability)
+   - Secondary/differential diagnoses to consider
+   - Confidence level for primary diagnosis (percentage)
+   - Clinical reasoning behind each potential diagnosis
 
-function extractChronicConditions(patientSummary) {
-  // Extract chronic conditions from medical records
-  const diagnosisRecords = patientSummary.medicalRecords.filter(
-    (record) => record.recordType === "diagnosis"
-  );
+2. PATHOPHYSIOLOGICAL ANALYSIS:
+   - Potential disease mechanisms at play
+   - How the patient's medical history impacts or modifies the presentation
+   - Correlation between symptoms and underlying physiological processes
 
-  // Get unique diagnoses
-  const uniqueDiagnoses = new Set();
-  diagnosisRecords.forEach((record) => {
-    if (record.diagnosis) {
-      uniqueDiagnoses.add(record.diagnosis);
-    }
-  });
+3. EVIDENCE-BASED EVALUATION:
+   - Key symptoms and their significance in diagnostic decision-making
+   - Relevant patient factors supporting or contradicting each diagnosis
+   - Discussion of how patient demographics and risk factors influence diagnostic probability
 
-  return Array.from(uniqueDiagnoses);
-}
+4. RECOMMENDED DIAGNOSTIC WORKUP:
+   - Immediate investigations required (labs, imaging, etc.)
+   - Secondary tests to consider
+   - Consultation recommendations
+   - Clinical parameters to monitor
 
-function extractAbnormalLabFindings(patientSummary) {
-  // Extract abnormal findings from lab results
-  const abnormalFindings = [];
+5. TREATMENT CONSIDERATIONS:
+   - Initial therapeutic approach
+   - Medication considerations (with attention to patient's current medications and allergies)
+   - Non-pharmacological interventions
+   - Follow-up timeline
 
-  patientSummary.labResults.forEach((result) => {
-    if (result.details && result.details.components) {
-      const abnormals = result.details.components.filter((c) => c.flagged);
-      abnormalFindings.push(...abnormals);
-    }
-  });
+6. DETAILED CLINICAL REASONING:
+   - Comprehensive explanation of diagnostic thought process
+   - Discussion of how this case fits typical or atypical presentation patterns
+   - Analysis of confounding factors in the patient's history
+   - Evidence-based justification for conclusions
 
-  return abnormalFindings;
-}
+Output should be in JSON format with these sections clearly delineated. Include comprehensive medical terminology appropriate for physician communication.`;
 
-function extractLatestVitalSigns(patientSummary) {
-  // Get the most recent vital signs from medical records or consultations
-  const recordsWithVitals = patientSummary.medicalRecords.filter(
-    (record) => record.vitalSigns && Object.keys(record.vitalSigns).length > 0
-  );
+      try {
+        console.log("Using Gemini API for doctor diagnosis analysis");
+        const responseText = await callGeminiAPI(prompt, apiKey);
 
-  if (recordsWithVitals.length > 0) {
-    const sortedRecords = [...recordsWithVitals].sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    );
+        // Parse the JSON response from the API
+        try {
+          // Extract JSON from the response text
+          const jsonStart = responseText.indexOf("{");
+          const jsonEnd = responseText.lastIndexOf("}") + 1;
+          const jsonStr = responseText.substring(jsonStart, jsonEnd);
 
-    return sortedRecords[0].vitalSigns;
-  }
+          const analysisResult = JSON.parse(jsonStr);
 
-  return {};
-}
+          return {
+            ...analysisResult,
+            patientInfo: {
+              id: patient.id,
+              name: `${patient.firstName} ${patient.lastName}`,
+              age: patient.age,
+              gender: patient.gender,
+            },
+          };
+        } catch (parseError) {
+          console.error(
+            "Error parsing doctor diagnosis Gemini response:",
+            parseError
+          );
+          console.log("Raw response:", responseText);
 
-function extractMedicationHistory(patientSummary) {
-  // This would normally come from a medications collection
-  // For now, extract from treatment plans in medical records
-  const medicationsList = [];
-
-  patientSummary.medicalRecords.forEach((record) => {
-    if (record.treatmentPlan) {
-      // Simple extraction - in a real system this would be more structured
-      const medsMatch = record.treatmentPlan.match(
-        /prescribed|started on|taking (.*?)(?:\.|$)/i
-      );
-      if (medsMatch && medsMatch[1]) {
-        medicationsList.push(medsMatch[1].trim());
-      }
-    }
-  });
-
-  // If nothing found in records, return default medications from the mock system
-  return medicationsList.length > 0
-    ? medicationsList
-    : ["Lisinopril 10mg daily", "Metformin 500mg twice daily"];
-}
-
-function calculateAgeRelatedFactors(patient) {
-  // Calculate age from date of birth
-  if (!patient.dateOfBirth) return [];
-
-  const dob = new Date(patient.dateOfBirth);
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-
-  // Adjust age if birthday hasn't occurred yet this year
-  if (
-    today.getMonth() < dob.getMonth() ||
-    (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())
-  ) {
-    age--;
-  }
-
-  // Return age-related risk factors
-  const factors = [];
-
-  if (age >= 65) factors.push("Advanced age (65+)");
-  if (age >= 50) factors.push("Increased risk of chronic conditions");
-  if (age >= 40) factors.push("Recommended for regular preventive screenings");
-
-  return factors;
-}
-
-function generateVitalTrends(medicalRecords) {
-  // Generate trend data for vitals over time
-  const vitalsOverTime = {
-    bloodPressure: [],
-    heartRate: [],
-    bloodGlucose: [],
-  };
-
-  // Filter records with vital signs and sort by date
-  const recordsWithVitals = medicalRecords
-    .filter((record) => record.vitalSigns)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  // Extract vital trends
-  recordsWithVitals.forEach((record) => {
-    const date = new Date(record.date).toISOString().split("T")[0];
-
-    if (record.vitalSigns.bloodPressure) {
-      const [systolic, diastolic] = record.vitalSigns.bloodPressure
-        .split("/")
-        .map(Number);
-      vitalsOverTime.bloodPressure.push({ date, systolic, diastolic });
-    }
-
-    if (record.vitalSigns.heartRate) {
-      vitalsOverTime.heartRate.push({
-        date,
-        value: parseInt(record.vitalSigns.heartRate),
-      });
-    }
-
-    if (record.vitalSigns.bloodGlucose) {
-      vitalsOverTime.bloodGlucose.push({
-        date,
-        value: parseInt(record.vitalSigns.bloodGlucose),
-      });
-    }
-  });
-
-  return vitalsOverTime;
-}
-
-function generateDiagnosisSummary(medicalRecords, aiDiagnostics) {
-  // Generate a summary of the patient's diagnostic history
-  const activeConditions = medicalRecords
-    .filter((record) => record.status === "active" && record.diagnosis)
-    .map((record) => record.diagnosis);
-
-  const uniqueConditions = [...new Set(activeConditions)];
-
-  // Check for AI diagnostic agreement
-  const aiConfirmedConditions = [];
-  if (aiDiagnostics && aiDiagnostics.length > 0) {
-    const latestAIDiagnosis = aiDiagnostics[aiDiagnostics.length - 1];
-
-    if (
-      latestAIDiagnosis.diagnosisData &&
-      latestAIDiagnosis.diagnosisData.diagnoses
-    ) {
-      const highConfidenceDiagnoses = latestAIDiagnosis.diagnosisData.diagnoses
-        .filter((d) => d.confidence >= 70)
-        .map((d) => d.name);
-
-      uniqueConditions.forEach((condition) => {
-        if (
-          highConfidenceDiagnoses.some(
-            (aiDx) => aiDx.includes(condition) || condition.includes(aiDx)
-          )
-        ) {
-          aiConfirmedConditions.push(condition);
+          // Return formatted text if JSON parsing fails
+          return {
+            textResponse: responseText,
+            patientInfo: {
+              id: patient.id,
+              name: `${patient.firstName} ${patient.lastName}`,
+              age: patient.age,
+              gender: patient.gender,
+            },
+          };
         }
-      });
+      } catch (apiError) {
+        console.error("Gemini API error in doctor diagnosis:", apiError);
+        throw apiError;
+      }
+    } catch (error) {
+      console.error("General error in doctor diagnosis analysis:", error);
+      throw error;
     }
-  }
-
-  // Generate summary text
-  if (uniqueConditions.length === 0) {
-    return "No active medical conditions identified.";
-  } else {
-    const conditionsList = uniqueConditions.join(", ");
-    const aiConfirmation =
-      aiConfirmedConditions.length > 0
-        ? ` AI analysis confirms the diagnosis of ${aiConfirmedConditions.join(
-            ", "
-          )}.`
-        : "";
-
-    return `Current active medical conditions: ${conditionsList}.${aiConfirmation}`;
-  }
-}
-
-function generatePotentialDiagnoses(
-  symptoms,
-  chronicConditions,
-  labFindings,
-  vitalSigns,
-  medications,
-  ageFactors
-) {
-  // This function would normally contain complex clinical decision logic
-  // Here we'll create a simplified version that creates diagnoses based on patterns
-
-  const potentialDiagnoses = [];
-
-  // Check for diabetes indicators
-  const hasElevatedGlucose = labFindings.some(
-    (finding) => finding.name.includes("Glucose") && finding.flagged
-  );
-  const hasElevatedHbA1c = labFindings.some(
-    (finding) => finding.name.includes("HbA1c") && finding.flagged
-  );
-  const hasDiabetesSymptoms = symptoms.some((symptom) =>
-    ["Increased thirst", "Frequent urination", "Blurred vision"].includes(
-      symptom
-    )
-  );
-  const hasDiabetesDiagnosis = chronicConditions.some((condition) =>
-    condition.includes("Diabetes")
-  );
-
-  if (
-    (hasElevatedGlucose || hasElevatedHbA1c || hasDiabetesDiagnosis) &&
-    hasDiabetesSymptoms
-  ) {
-    potentialDiagnoses.push({
-      id: "d1",
-      name: "Type 2 Diabetes Mellitus",
-      confidence: hasElevatedHbA1c ? 95 : hasElevatedGlucose ? 85 : 75,
-      description:
-        "The patient's symptoms and lab results strongly suggest Type 2 Diabetes Mellitus.",
-      keyFactors: [
-        {
-          factor: "Elevated blood glucose levels in recent lab tests",
-          weight: hasElevatedGlucose ? 90 : 60,
-        },
-        {
-          factor: "Elevated HbA1c",
-          weight: hasElevatedHbA1c ? 95 : 0,
-        },
-        {
-          factor: "Symptoms of increased thirst and frequent urination",
-          weight: hasDiabetesSymptoms ? 85 : 40,
-        },
-        { factor: "Family history of diabetes (if available)", weight: 75 },
-        {
-          factor: "Currently taking diabetes medication",
-          weight: medications.some((med) =>
-            med.toLowerCase().includes("metformin")
-          )
-            ? 95
-            : 0,
-        },
-      ].filter((factor) => factor.weight > 0),
-      recommendations: [
-        hasElevatedHbA1c
-          ? "Continue current diabetes management plan"
-          : "HbA1c test to confirm diagnosis",
-        "Regular blood glucose monitoring",
-        "Diabetes education and nutritional counseling",
-        "Follow-up in 3 months to assess treatment response",
-      ],
-    });
-  }
-
-  // Check for hypertension
-  const hasElevatedBP =
-    vitalSigns.bloodPressure &&
-    (parseInt(vitalSigns.bloodPressure.split("/")[0]) >= 130 ||
-      parseInt(vitalSigns.bloodPressure.split("/")[1]) >= 80);
-
-  const hasHypertensionMeds = medications.some(
-    (med) =>
-      med.toLowerCase().includes("lisinopril") ||
-      med.toLowerCase().includes("amlodipine") ||
-      med.toLowerCase().includes("losartan")
-  );
-
-  if (hasElevatedBP || hasHypertensionMeds) {
-    potentialDiagnoses.push({
-      id: "d2",
-      name: "Hypertension",
-      confidence: hasHypertensionMeds ? 90 : hasElevatedBP ? 70 : 50,
-      description:
-        "Patient shows indicators of hypertension, requiring continued monitoring and treatment.",
-      keyFactors: [
-        {
-          factor: `Elevated blood pressure readings (${
-            vitalSigns.bloodPressure || "Not recorded"
-          })`,
-          weight: hasElevatedBP ? 80 : 30,
-        },
-        {
-          factor: "Currently on anti-hypertensive medication",
-          weight: hasHypertensionMeds ? 90 : 0,
-        },
-        { factor: "Sedentary lifestyle (if reported)", weight: 60 },
-        { factor: "Age factor", weight: ageFactors.length > 0 ? 65 : 40 },
-      ].filter((factor) => factor.weight > 0),
-      recommendations: [
-        hasHypertensionMeds
-          ? "Continue current anti-hypertensive medication"
-          : "Consider initiating anti-hypertensive therapy",
-        "Regular blood pressure monitoring",
-        "DASH diet recommendation",
-        "Increase physical activity",
-        "Follow-up visit in 1 month",
-      ],
-    });
-  }
-
-  // Add hypothyroidism if fatigue is present (lower confidence without labs)
-  if (symptoms.includes("Fatigue") || symptoms.includes("Weight gain")) {
-    potentialDiagnoses.push({
-      id: "d3",
-      name: "Hypothyroidism",
-      confidence: labFindings.some((f) => f.name.includes("TSH") && f.flagged)
-        ? 80
-        : 32,
-      description:
-        "Some symptoms align with hypothyroidism, but confidence is low without thyroid function tests.",
-      keyFactors: [
-        {
-          factor: "Fatigue reported by patient",
-          weight: symptoms.includes("Fatigue") ? 60 : 0,
-        },
-        {
-          factor: "Weight gain or difficulty losing weight",
-          weight: symptoms.includes("Weight gain") ? 55 : 0,
-        },
-        {
-          factor: "Thyroid function test results",
-          weight: labFindings.some((f) => f.name.includes("TSH") && f.flagged)
-            ? 85
-            : 20,
-        },
-        {
-          factor: "Cold sensitivity",
-          weight: symptoms.includes("Cold sensitivity") ? 50 : 0,
-        },
-      ].filter((factor) => factor.weight > 0),
-      recommendations: [
-        "Thyroid function panel (TSH, T3, T4)",
-        "Monitor for additional symptoms",
-        "Consider consultation with endocrinology if symptoms persist",
-      ],
-    });
-  }
-
-  // If no specific diagnoses identified, add a general assessment
-  if (potentialDiagnoses.length === 0) {
-    potentialDiagnoses.push({
-      id: "d5",
-      name: "Non-specific symptoms requiring further evaluation",
-      confidence: 50,
-      description:
-        "The patient's current symptoms and test results do not clearly indicate a specific diagnosis.",
-      keyFactors: [
-        { factor: "Mixed non-specific symptoms", weight: 60 },
-        { factor: "Incomplete diagnostic workup", weight: 70 },
-        {
-          factor: "Multiple possible causes for presenting symptoms",
-          weight: 65,
-        },
-      ],
-      recommendations: [
-        "Complete blood count",
-        "Comprehensive metabolic panel",
-        "Thyroid function tests",
-        "Follow-up in 2 weeks",
-      ],
-    });
-  }
-
-  return potentialDiagnoses;
-}
-
-/**
- * Generates a mock response for when the Gemini API is unavailable
- * @param {string} prompt - The prompt that would be sent to the API
- * @returns {string} A mock response
- */
-const mockGeminiResponse = (prompt) => {
-  // Extract key information from the prompt
-  const symptoms =
-    prompt.match(/symptoms \((.*?)\)/i)?.[1] || "unknown symptoms";
-  const diagnosis =
-    prompt.match(/top diagnosis is (.*?) with/i)?.[1] || "Type 2 Diabetes";
-
-  // Extract the doctor's question
-  const lines = prompt.split("\n");
-  let doctorQuestion = "";
-  for (let i = lines.length - 5; i < lines.length; i++) {
-    if (lines[i]?.startsWith("Doctor:")) {
-      doctorQuestion = lines[i].replace("Doctor:", "").trim();
-      break;
-    }
-  }
-
-  // Generate contextual responses based on the question
-  if (doctorQuestion.toLowerCase().includes("treatment")) {
-    return `Based on the diagnosis of ${diagnosis}, I would recommend the following treatment approach:
-
-1. Lifestyle modifications: Diet changes focusing on reduced carbohydrate intake, regular exercise (30 minutes daily), and weight management if applicable.
-
-2. Medication: Consider starting with Metformin as first-line therapy if appropriate. Monitor for GI side effects.
-
-3. Follow-up: Regular blood glucose monitoring and HbA1c testing every 3 months.
-
-4. Patient education: Ensure the patient understands the condition and self-management techniques.`;
-  } else if (
-    doctorQuestion.toLowerCase().includes("prognosis") ||
-    doctorQuestion.toLowerCase().includes("outlook")
-  ) {
-    return `The prognosis for ${diagnosis} is generally favorable with proper management:
-
-- With adherence to treatment and lifestyle modifications, most patients achieve good glycemic control
-- Regular monitoring and adjustment of the treatment plan can prevent or delay complications
-- Early intervention for any developing complications improves long-term outcomes
-- Patient engagement in self-management is a key factor in determining long-term prognosis`;
-  } else if (
-    doctorQuestion.toLowerCase().includes("test") ||
-    doctorQuestion.toLowerCase().includes("lab")
-  ) {
-    return `For ${diagnosis}, I recommend the following tests to confirm diagnosis and establish a baseline:
-
-1. HbA1c: To assess average blood glucose levels over 2-3 months
-2. Fasting blood glucose: To determine baseline glucose levels
-3. Lipid panel: To assess cardiovascular risk
-4. Kidney function tests (eGFR, urine albumin-to-creatinine ratio): To check for early diabetic nephropathy
-5. Baseline eye examination: To screen for diabetic retinopathy`;
-  } else {
-    return `Based on the symptoms (${symptoms}), the diagnosis of ${diagnosis} appears most likely. This condition typically presents with the symptoms described and requires a comprehensive management approach.
-
-The pathophysiology involves insulin resistance and progressive beta-cell dysfunction, which explains the presenting symptoms. Management typically includes lifestyle modifications, medication therapy, and regular monitoring.
-
-Would you like specific information about treatment options, monitoring protocols, or patient education materials for this condition?`;
-  }
-};
-
-// At the top of the file, after the mockUsers array but before mockAppointments
-// Mock medications data
-const mockMedications = [
-  {
-    id: "med1",
-    name: "Amoxicillin",
-    category: "Antibiotic",
-    dosage: "500mg",
-    form: "Capsule",
-    stock: 120,
-    stockStatus: "high",
-    price: 12.99,
-    manufacturer: "Pfizer",
-    expiryDate: "12/2024",
-    description: "Broad-spectrum antibiotic used to treat bacterial infections",
-    sideEffects: "Diarrhea, nausea, vomiting, rash",
-    prescriptionRequired: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   },
-  {
-    id: "med2",
-    name: "Lisinopril",
-    category: "Antihypertensive",
-    dosage: "10mg",
-    form: "Tablet",
-    stock: 45,
-    stockStatus: "medium",
-    price: 15.5,
-    manufacturer: "Merck",
-    expiryDate: "06/2024",
-    description:
-      "ACE inhibitor used to treat high blood pressure and heart failure",
-    sideEffects: "Dry cough, dizziness, headache",
-    prescriptionRequired: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "med3",
-    name: "Metformin",
-    category: "Antidiabetic",
-    dosage: "850mg",
-    form: "Tablet",
-    stock: 15,
-    stockStatus: "low",
-    price: 8.75,
-    manufacturer: "GlaxoSmithKline",
-    expiryDate: "09/2024",
-    description: "First-line medication for the treatment of type 2 diabetes",
-    sideEffects: "Nausea, vomiting, diarrhea, abdominal pain",
-    prescriptionRequired: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "med4",
-    name: "Atorvastatin",
-    category: "Statin",
-    dosage: "20mg",
-    form: "Tablet",
-    stock: 78,
-    stockStatus: "high",
-    price: 22.3,
-    manufacturer: "AstraZeneca",
-    expiryDate: "03/2025",
-    description:
-      "Statin medication used to prevent cardiovascular disease and treat high cholesterol",
-    sideEffects: "Muscle pain, headache, digestive problems",
-    prescriptionRequired: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "med5",
-    name: "Albuterol",
-    category: "Bronchodilator",
-    dosage: "90mcg",
-    form: "Inhaler",
-    stock: 25,
-    stockStatus: "medium",
-    price: 45.99,
-    manufacturer: "Novartis",
-    expiryDate: "11/2024",
-    description: "Quick-relief medication for asthma and COPD",
-    sideEffects: "Tremor, nervousness, headache, throat irritation",
-    prescriptionRequired: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "med6",
-    name: "Sertraline",
-    category: "SSRI",
-    dosage: "50mg",
-    form: "Tablet",
-    stock: 8,
-    stockStatus: "low",
-    price: 18.25,
-    manufacturer: "Teva",
-    expiryDate: "08/2024",
-    description:
-      "Selective serotonin reuptake inhibitor used to treat depression and anxiety disorders",
-    sideEffects: "Nausea, insomnia, dizziness, dry mouth",
-    prescriptionRequired: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-// Add the calculateStockStatus function with other helper functions near the top
-// Helper function to calculate stock status based on stock count
-const calculateStockStatus = (stock) => {
-  if (stock > 50) return "high";
-  if (stock > 20) return "medium";
-  return "low";
 };
 
 // Helper function to simulate medical chat responses
@@ -3681,6 +3022,123 @@ const simulateMedicalChatResponse = async (userMessage) => {
       source: "AI Medical Assistant",
     };
   }
+};
+
+// Function to generate mock symptom analysis (fallback when API fails)
+const mockSymptomAnalysis = (selectedSymptoms) => {
+  const symptomsText = selectedSymptoms.join(", ");
+
+  // Map common symptom combinations to responses
+  if (
+    selectedSymptoms.includes("Fever") &&
+    selectedSymptoms.includes("Cough")
+  ) {
+    if (selectedSymptoms.includes("Shortness of breath")) {
+      return {
+        status: "warning",
+        title: "Possible Respiratory Infection",
+        confidence: 78,
+        details: [
+          "Symptoms suggest possible respiratory infection",
+          "Shortness of breath may indicate lower respiratory involvement",
+          "Consider COVID-19 testing based on exposure risk",
+        ],
+        recommendations: [
+          "Rest and hydration",
+          "Monitor oxygen levels if possible",
+          "Seek medical care if breathing difficulties worsen",
+          "Self-isolate until diagnosis confirmed",
+        ],
+        explanation:
+          "The combination of fever, cough, and shortness of breath is concerning for a lower respiratory infection. This symptom triad has been commonly associated with COVID-19, but can also be present in pneumonia, bronchitis, or other respiratory conditions. The shortness of breath particularly suggests that the infection may be affecting the lung tissue or airways, which requires careful monitoring.",
+      };
+    } else {
+      return {
+        status: "info",
+        title: "Upper Respiratory Infection",
+        confidence: 82,
+        details: [
+          "Symptoms consistent with viral upper respiratory infection",
+          "May be common cold or mild seasonal flu",
+        ],
+        recommendations: [
+          "Rest and increased fluid intake",
+          "Over-the-counter fever reducers if needed",
+          "Monitor symptoms for 3-5 days",
+          "Seek care if symptoms worsen or persist beyond 7 days",
+        ],
+        explanation:
+          "Fever and cough without shortness of breath typically suggest an upper respiratory tract infection. Most commonly, these are caused by viruses such as rhinovirus, respiratory syncytial virus, or influenza. The absence of shortness of breath is reassuring as it suggests the infection hasn't spread to the lower respiratory tract, which would be more concerning.",
+      };
+    }
+  } else if (
+    selectedSymptoms.includes("Headache") &&
+    selectedSymptoms.includes("Fatigue")
+  ) {
+    if (selectedSymptoms.includes("Nausea")) {
+      return {
+        status: "info",
+        title: "Possible Migraine",
+        confidence: 75,
+        details: [
+          "Symptom pattern suggests migraine headache",
+          "Associated nausea is common with migraines",
+          "May be triggered by stress, diet, or environmental factors",
+        ],
+        recommendations: [
+          "Rest in a quiet, darkened room",
+          "Over-the-counter pain relievers may help",
+          "Track triggers in a symptom diary",
+          "Consider preventive medication if recurrent",
+        ],
+        explanation:
+          "The classic triad of headache, fatigue, and nausea is highly suggestive of migraine headaches. Migraines are neurological events that often involve the trigeminal nerve and result in both pain and autonomic symptoms like nausea. Sensitivity to light and sound (photophobia and phonophobia) often accompany these symptoms, and stress is a common trigger.",
+      };
+    }
+  } else if (
+    selectedSymptoms.includes("Abdominal pain") &&
+    (selectedSymptoms.includes("Nausea") ||
+      selectedSymptoms.includes("Dizziness"))
+  ) {
+    return {
+      status: "warning",
+      title: "Gastrointestinal Disturbance",
+      confidence: 70,
+      details: [
+        "Symptoms suggest gastrointestinal irritation",
+        "Could be viral gastroenteritis, food poisoning, or other GI condition",
+        "Dehydration risk present with these symptoms",
+      ],
+      recommendations: [
+        "Small sips of clear fluids to prevent dehydration",
+        "Avoid solid foods until nausea improves",
+        "Gradual return to bland diet",
+        "Seek care if symptoms persist beyond 48 hours or if severe pain occurs",
+      ],
+      explanation:
+        "Abdominal pain combined with nausea or dizziness suggests a gastrointestinal disturbance. This could be due to viral gastroenteritis (stomach flu), food poisoning, or other inflammatory conditions of the digestive tract. The dizziness can be related to dehydration that frequently accompanies these conditions, particularly if vomiting or diarrhea has occurred.",
+    };
+  }
+
+  // Default response if no specific pattern matched
+  return {
+    status: "info",
+    title: "General Symptom Assessment",
+    confidence: 65,
+    details: [
+      `Analyzing symptoms: ${symptomsText}`,
+      "Multiple potential causes for this symptom combination",
+      "Insufficient specificity for definitive assessment",
+    ],
+    recommendations: [
+      "Monitor symptoms and track changes",
+      "Note duration, intensity and any additional symptoms",
+      "Consider consultation with healthcare provider for proper evaluation",
+      "Maintain adequate hydration and rest in the meantime",
+    ],
+    explanation:
+      "The combination of symptoms you've reported doesn't match a specific common pattern in our analysis system. This doesn't mean your symptoms aren't significant, but rather that they could be attributed to multiple different causes, ranging from benign to more serious conditions. More context such as symptom duration, progression, and additional clinical information would be needed for a more specific assessment.",
+  };
 };
 
 export default mockApi;
