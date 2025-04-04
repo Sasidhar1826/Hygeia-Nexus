@@ -60,44 +60,118 @@ export function getUserById(userId) {
 export async function getFormattedLabReports(patientId) {
   try {
     const basicReports = await mockApi.getLabReports({ patient: patientId });
+    console.log("Basic lab reports fetched:", basicReports);
 
     // Process the report data to make it more suitable for the enhanced LabReportCard
     const enhancedReports = basicReports.map((report) => {
-      const components = [];
+      let components = report.components || [];
+      let patientInfo = null;
 
-      // Convert the results object to a components array with proper formatting
-      if (report.results && typeof report.results === "object") {
+      // Ensure results is properly formatted - handle string or object
+      let formattedResults = report.results;
+
+      // If results is a string, make sure it's treated properly as HTML
+      if (typeof report.results === "string") {
+        // Convert the string to HTML-safe content with proper formatting
+        formattedResults = report.results
+          .replace(/\n/g, "<br>")
+          .replace(/\s\s/g, "&nbsp;&nbsp;");
+      }
+      // If results is an object, ensure values are properly formatted as strings
+      else if (typeof report.results === "object" && report.results !== null) {
+        const processedResults = {};
+
         Object.entries(report.results).forEach(([key, value]) => {
-          // Determine if this result should be flagged as abnormal
-          let flagged = false;
+          // Normalize the key to be more readable
+          const formattedKey = key
+            .replace(/([A-Z])/g, " $1") // Add space before capital letters
+            .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+            .trim();
 
-          // Simple flagging logic for common parameters
-          if (key === "Glucose" && parseFloat(value) > 120) flagged = true;
-          if (key === "HbA1c" && parseFloat(value) > 6.5) flagged = true;
-          if (key === "Cholesterol" && parseFloat(value) > 200) flagged = true;
-          if (key === "LDL Cholesterol" && parseFloat(value) > 130)
-            flagged = true;
-          if (key === "HDL Cholesterol" && parseFloat(value) < 40)
-            flagged = true;
-          if (key === "Triglycerides" && parseFloat(value) > 150)
-            flagged = true;
+          // Extract numeric value and unit if possible
+          let processedValue = value;
+          if (typeof value === "string") {
+            // Try to separate numeric value from units
+            const match = value.match(/^([\d.]+)\s*(.*)$/);
+            if (match) {
+              const [_, numValue, unit] = match;
+              // Format as number with unit
+              processedValue = `${parseFloat(numValue)} ${unit}`.trim();
+            }
+          }
 
-          // Add to components array
-          components.push({
-            name: key,
-            value,
-            unit: getUnitForParameter(key),
-            flagged,
-          });
+          processedResults[formattedKey] = processedValue;
         });
+
+        formattedResults = processedResults;
       }
 
+      // Check if we have patient info
+      if (report.patient) {
+        if (typeof report.patient === "object") {
+          patientInfo = report.patient;
+        } else {
+          // Try to get patient info from mockApi
+          try {
+            const patient = mockApi.getUserById(report.patient);
+            patientInfo = patient
+              ? {
+                  _id: patient._id,
+                  name:
+                    patient.name ||
+                    `${patient.firstName || ""} ${
+                      patient.lastName || ""
+                    }`.trim(),
+                }
+              : null;
+          } catch (e) {
+            console.error(
+              `Error fetching patient info for report ${report._id}:`,
+              e
+            );
+          }
+        }
+      }
+
+      // Determine if the report has abnormal results
+      let hasAbnormalResults =
+        report.hasAbnormalResults || components.some((c) => c.flagged === true);
+
+      // If we have results object but no explicit abnormal flag, try to detect based on test names
+      if (!hasAbnormalResults && typeof formattedResults === "object") {
+        // Check common lab values against reference ranges
+        for (const [key, value] of Object.entries(formattedResults)) {
+          const numValue = parseFloat(value);
+          if (isNaN(numValue)) continue;
+
+          // Check for normal ranges of common tests
+          if (
+            (key.includes("Glucose") && (numValue < 70 || numValue > 100)) ||
+            (key.includes("HbA1c") && numValue > 5.7) ||
+            (key.includes("Cholesterol") && numValue > 200) ||
+            (key.includes("LDL") && numValue > 100) ||
+            (key.includes("HDL") && numValue < 40) ||
+            (key.includes("Triglycerides") && numValue > 150) ||
+            (key.includes("Blood Pressure") && numValue > 120)
+          ) {
+            hasAbnormalResults = true;
+            break;
+          }
+        }
+      }
+
+      // Build the enhanced report
       return {
         ...report,
         components,
+        hasAbnormalResults,
+        patientName: patientInfo?.name || report.patientName || "Unknown",
+        patientId: patientInfo?._id || report.patientId || report.patient,
+        results: formattedResults, // Use our properly formatted results
       };
     });
 
+    console.log("Enhanced lab reports:", enhancedReports);
     return enhancedReports;
   } catch (error) {
     console.error("Error fetching formatted lab reports:", error);

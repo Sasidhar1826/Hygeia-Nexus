@@ -584,22 +584,42 @@ const PatientDetails = () => {
 
         if (Array.isArray(labReportsResponse)) {
           // Make sure each lab report has required fields for the LabReportCard component
-          const processedLabReports = labReportsResponse.map((report) => ({
-            ...report,
-            id: report.id || report._id || `report-${Math.random()}`,
-            testType: report.testType || report.type || "Blood Test",
-            date: report.date || report.testDate || new Date().toISOString(),
-            patientId: report.patientId || id,
-            doctorId: report.doctorId || user?._id,
-            status: report.status || "completed",
-            components: report.components || [],
-            results: report.results || {},
-            hasAbnormalResults:
-              report.hasAbnormalResults === true ||
-              (Array.isArray(report.components) &&
-                report.components.some((comp) => comp.flagged === true)) ||
-              false,
-          }));
+          const processedLabReports = labReportsResponse.map((report) => {
+            // Ensure results is properly formatted - convert object to string if needed
+            let formattedResults = report.results;
+
+            // If results is an object and we don't have components, convert to a string summary
+            if (
+              typeof report.results === "object" &&
+              report.results !== null &&
+              (!report.components || report.components.length === 0)
+            ) {
+              // If we have a string interpretation, use that instead of the object
+              if (
+                typeof report.interpretation === "string" &&
+                report.interpretation
+              ) {
+                formattedResults = report.interpretation;
+              }
+            }
+
+            return {
+              ...report,
+              id: report.id || report._id || `report-${Math.random()}`,
+              testType: report.testType || report.type || "Blood Test",
+              date: report.date || report.testDate || new Date().toISOString(),
+              patientId: report.patientId || id,
+              doctorId: report.doctorId || user?._id,
+              status: report.status || "completed",
+              components: report.components || [],
+              results: formattedResults,
+              hasAbnormalResults:
+                report.hasAbnormalResults === true ||
+                (Array.isArray(report.components) &&
+                  report.components.some((comp) => comp.flagged === true)) ||
+                false,
+            };
+          });
 
           setLabReports(processedLabReports);
         } else {
@@ -1151,6 +1171,7 @@ const PatientDetails = () => {
                     <LabReportCard
                       key={report.id || report._id}
                       report={report}
+                      onClick={handleViewLabReport}
                     />
                   ))
                 ) : (

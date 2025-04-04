@@ -712,8 +712,12 @@ const mockLabReportsUpdate = [
     status: "completed",
     results: "Elevated HbA1c consistent with diabetes mellitus (≥6.5%).",
     detailId: "labdetail3",
-  },
+  }
 ];
+
+// Replace the mockLabReports with the updated version to fix the lab report display
+mockLabReports.length = 0;
+mockLabReportsUpdate.forEach((report) => mockLabReports.push({ ...report }));
 
 // Mock AI diagnostic suggestions history
 const mockAIDiagnosticHistory = [];
@@ -1213,9 +1217,34 @@ const mockApi = {
     }
 
     // Populate patient and technician information
-    return filteredReports.map((report) => {
+    let populatedReports = filteredReports.map((report) => {
       const patient = mockUsers.find((u) => u._id === report.patient);
       const technician = mockUsers.find((u) => u._id === report.technician);
+      const doctor = mockUsers.find((u) => u._id === report.doctor);
+
+      // Get details if available
+      let details = null;
+      let components = [];
+      if (report.detailId) {
+        details = mockLabResultDetails.find(
+          (detail) => detail._id === report.detailId
+        );
+        components = details?.components || [];
+      }
+
+      // Process string results to prevent them being treated as arrays
+      let processedResults = report.results;
+      if (typeof report.results === "string") {
+        // HTML-escape the string to ensure it renders properly
+        processedResults = report.results
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;")
+          .replace(/\n/g, "<br>")
+          .replace(/\s{2,}/g, (match) => "&nbsp;".repeat(match.length));
+      }
 
       return {
         ...report,
@@ -1233,8 +1262,20 @@ const mockApi = {
               department: technician.department,
             }
           : null,
+        doctor: doctor
+          ? {
+              _id: doctor._id,
+              name: doctor.name,
+            }
+          : null,
+        components,
+        hasAbnormalResults: components.some((c) => c.flagged),
+        interpretation: details?.interpretation || report.results,
+        results: processedResults, // Use the processed version for display
       };
     });
+
+    return populatedReports;
   },
 
   uploadLabReport: async (reportData) => {

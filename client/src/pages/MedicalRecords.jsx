@@ -9,6 +9,8 @@ import {
   FaFileAlt,
   FaVial,
   FaFlask,
+  FaExclamationTriangle,
+  FaCheck,
 } from "react-icons/fa";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
@@ -17,6 +19,7 @@ import { useAuth } from "../context/AuthContext";
 import mockApi from "../services/mockApi";
 import PageTransition from "../components/animations/PageTransition";
 import ViewLabReport from "../components/modals/ViewLabReport";
+import LabReportCard from "../components/medical/LabReportCard";
 
 const PageContainer = styled.div`
   display: flex;
@@ -94,6 +97,13 @@ const RecordsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: ${(props) => props.theme.spacing(3)};
+`;
+
+const LabReportsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing(3)};
+  width: 100%;
 `;
 
 const RecordCard = styled(Card)`
@@ -257,6 +267,7 @@ const MedicalRecords = () => {
               },
               fileType: "lab",
               rawReport: report, // Keep original data for reference
+              hasAbnormalResults: report.hasAbnormalResults,
             }));
 
             console.log("Fetched lab reports:", labReports);
@@ -329,9 +340,12 @@ const MedicalRecords = () => {
     return false;
   });
 
-  const handleViewLabReport = (record) => {
-    if (record.fileType === "lab" && record.rawReport) {
-      setSelectedLabReport(record.rawReport);
+  const handleViewLabReport = (report) => {
+    if (report._id) {
+      setSelectedLabReport(report);
+      setShowLabReportModal(true);
+    } else if (report.fileType === "lab" && report.rawReport) {
+      setSelectedLabReport(report.rawReport);
       setShowLabReportModal(true);
     }
   };
@@ -382,86 +396,89 @@ const MedicalRecords = () => {
         {loading ? (
           <div>Loading records...</div>
         ) : filteredRecords.length > 0 ? (
-          <RecordsGrid>
-            {filteredRecords.map((record) => (
-              <RecordCard
-                key={record.id}
-                onClick={() =>
-                  record.fileType === "lab" ? handleViewLabReport(record) : null
-                }
-                style={{
-                  cursor: record.fileType === "lab" ? "pointer" : "default",
-                }}
-              >
-                <RecordHeader>
-                  <RecordIcon color={getFileColor(record.fileType)}>
-                    {getFileIcon(record.fileType)}
-                  </RecordIcon>
-                  <RecordInfo>
-                    <RecordTitle>
-                      {record.reportType || record.type}
-                    </RecordTitle>
-                    <RecordDate>
-                      {new Date(record.date).toLocaleDateString()}
-                    </RecordDate>
-                  </RecordInfo>
-                </RecordHeader>
-                <RecordContent>
-                  <RecordDetails>
-                    <RecordDetail>
-                      <span>Provider:</span>
-                      <span>{record.doctor}</span>
-                    </RecordDetail>
-                    <RecordDetail>
-                      <span>Department:</span>
-                      <span>{record.department}</span>
-                    </RecordDetail>
+          <>
+            {activeTab === "lab" ? (
+              <LabReportsContainer>
+                {filteredRecords.map((record) => (
+                  <LabReportCard
+                    key={record.id}
+                    report={record.rawReport}
+                    onClick={handleViewLabReport}
+                  />
+                ))}
+              </LabReportsContainer>
+            ) : (
+              <RecordsGrid>
+                {filteredRecords.map((record) =>
+                  record.fileType === "lab" ? (
+                    <LabReportCard
+                      key={record.id}
+                      report={record.rawReport}
+                      onClick={handleViewLabReport}
+                    />
+                  ) : (
+                    <RecordCard
+                      key={record.id}
+                      onClick={() =>
+                        record.fileType === "lab"
+                          ? handleViewLabReport(record)
+                          : null
+                      }
+                      style={{
+                        cursor:
+                          record.fileType === "lab" ? "pointer" : "default",
+                      }}
+                    >
+                      <RecordHeader>
+                        <RecordIcon color={getFileColor(record.fileType)}>
+                          {getFileIcon(record.fileType)}
+                        </RecordIcon>
+                        <RecordInfo>
+                          <RecordTitle>
+                            {record.reportType || record.type}
+                          </RecordTitle>
+                          <RecordDate>
+                            {new Date(record.date).toLocaleDateString()}
+                          </RecordDate>
+                        </RecordInfo>
+                      </RecordHeader>
+                      <RecordContent>
+                        <RecordDetails>
+                          <RecordDetail>
+                            <span>Provider:</span>
+                            <span>{record.doctor}</span>
+                          </RecordDetail>
+                          <RecordDetail>
+                            <span>Department:</span>
+                            <span>{record.department}</span>
+                          </RecordDetail>
 
-                    {record.fileType === "lab" &&
-                      record.rawReport &&
-                      record.rawReport.results && (
-                        <div style={{ marginTop: "10px" }}>
-                          <div
-                            style={{ fontWeight: "600", marginBottom: "5px" }}
-                          >
-                            Results:
-                          </div>
-                          {Object.entries(record.rawReport.results).map(
-                            ([key, value]) => (
+                          {record.details && record.details.notes && (
+                            <div
+                              style={{ marginTop: "10px", fontSize: "0.9em" }}
+                            >
                               <div
-                                key={key}
                                 style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  padding: "3px 0",
-                                  borderBottom: "1px dashed #eee",
-                                  fontSize: "0.9em",
+                                  fontWeight: "600",
+                                  marginBottom: "5px",
                                 }}
                               >
-                                <span>{key}:</span>
-                                <span>{value}</span>
+                                Notes:
                               </div>
-                            )
+                              <div>{record.details.notes}</div>
+                            </div>
                           )}
-                        </div>
-                      )}
-
-                    {record.details && record.details.notes && (
-                      <div style={{ marginTop: "10px", fontSize: "0.9em" }}>
-                        <div style={{ fontWeight: "600", marginBottom: "5px" }}>
-                          Notes:
-                        </div>
-                        <div>{record.details.notes}</div>
-                      </div>
-                    )}
-                  </RecordDetails>
-                  <RecordActions>
-                    <Button size="small">View Details</Button>
-                  </RecordActions>
-                </RecordContent>
-              </RecordCard>
-            ))}
-          </RecordsGrid>
+                        </RecordDetails>
+                        <RecordActions>
+                          <Button size="small">View Details</Button>
+                        </RecordActions>
+                      </RecordContent>
+                    </RecordCard>
+                  )
+                )}
+              </RecordsGrid>
+            )}
+          </>
         ) : (
           <div style={{ textAlign: "center", marginTop: "40px" }}>
             <h3>No records found</h3>

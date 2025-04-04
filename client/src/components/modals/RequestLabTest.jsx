@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion } from "framer-motion";
 import {
@@ -8,6 +8,7 @@ import {
   FaExclamationTriangle,
 } from "react-icons/fa";
 import mockAuthService from "../../services/mockApi";
+import mockApi from "../../services/mockApi";
 import { useAuth } from "../../context/AuthContext";
 
 const ModalBackdrop = styled(motion.div)`
@@ -220,28 +221,65 @@ const SuccessMessage = styled(motion.div)`
   }
 `;
 
-const RequestLabTest = ({ isOpen, onClose, patient, departmentId }) => {
+const RequestLabTest = ({
+  isOpen,
+  onClose,
+  patient,
+  patientId,
+  departmentId,
+  doctorId,
+}) => {
   const { user } = useAuth();
   const [testType, setTestType] = useState("Blood Test");
   const [notes, setNotes] = useState("");
   const [urgency, setUrgency] = useState("Normal");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [fetchedPatient, setFetchedPatient] = useState(patient || null);
+  const [loading, setLoading] = useState(!patient && !!patientId);
+
+  // Fetch patient data if needed
+  useEffect(() => {
+    const getPatientData = async () => {
+      if (!patient && patientId) {
+        setLoading(true);
+        try {
+          const data = await mockApi.getPatientById(patientId);
+          setFetchedPatient(data);
+        } catch (error) {
+          console.error("Error fetching patient data:", error);
+        } finally {
+          setLoading(false);
+        }
+      } else if (patient) {
+        setFetchedPatient(patient);
+      }
+    };
+
+    if (isOpen) {
+      getPatientData();
+    }
+  }, [patient, patientId, isOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
+      const currentPatient = fetchedPatient || patient;
+      if (!currentPatient) {
+        throw new Error("Patient data not available");
+      }
+
       const patientName =
-        patient.firstName && patient.lastName
-          ? `${patient.firstName} ${patient.lastName}`
-          : patient.name || "";
+        currentPatient.firstName && currentPatient.lastName
+          ? `${currentPatient.firstName} ${currentPatient.lastName}`
+          : currentPatient.name || "Unknown Patient";
 
       await mockAuthService.createLabOrder({
-        patient: patient._id,
+        patient: currentPatient._id,
         patientName: patientName,
-        doctor: user._id,
+        doctor: doctorId || user?._id,
         testType: testType,
         status: "pending",
         urgency: urgency,
@@ -300,7 +338,11 @@ const RequestLabTest = ({ isOpen, onClose, patient, departmentId }) => {
         </ModalHeader>
 
         <ModalBody>
-          {isSubmitted ? (
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "20px" }}>
+              <p>Loading patient data...</p>
+            </div>
+          ) : isSubmitted ? (
             <SuccessMessage
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -309,6 +351,17 @@ const RequestLabTest = ({ isOpen, onClose, patient, departmentId }) => {
               <h3>Lab Test Requested Successfully</h3>
               <p>The lab technician will be notified of the request.</p>
             </SuccessMessage>
+          ) : !fetchedPatient ? (
+            <div style={{ textAlign: "center", padding: "20px", color: "red" }}>
+              <p>Error: Could not retrieve patient data</p>
+              <Button
+                type="button"
+                onClick={onClose}
+                style={{ marginTop: "10px" }}
+              >
+                Close
+              </Button>
+            </div>
           ) : (
             <Form onSubmit={handleSubmit}>
               <FormGroup>
@@ -321,10 +374,9 @@ const RequestLabTest = ({ isOpen, onClose, patient, departmentId }) => {
                     backgroundColor: "#f9f9f9",
                   }}
                 >
-                  {patient.firstName && patient.lastName
-                    ? `${patient.firstName} ${patient.lastName}`
-                    : patient.name ||
-                      `${patient.firstName || ""} ${patient.lastName || ""}`}
+                  {fetchedPatient.firstName && fetchedPatient.lastName
+                    ? `${fetchedPatient.firstName} ${fetchedPatient.lastName}`
+                    : fetchedPatient.name || "Unknown Patient"}
                 </div>
               </FormGroup>
 

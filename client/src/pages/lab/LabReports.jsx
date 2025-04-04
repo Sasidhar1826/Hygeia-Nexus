@@ -6,6 +6,8 @@ import PageTransition from "../../components/animations/PageTransition";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
 import mockAuthService from "../../services/mockApi";
+import LabReportCard from "../../components/medical/LabReportCard";
+import ViewLabReport from "../../components/modals/ViewLabReport";
 
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -66,10 +68,11 @@ const Filter = styled.select`
   outline: none;
 `;
 
-const ReportsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  grid-gap: ${(props) => props.theme.spacing(3)};
+const ReportsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${(props) => props.theme.spacing(3)};
+  width: 100%;
 `;
 
 const ReportCard = styled(motion.div)`
@@ -198,6 +201,8 @@ const LabReports = () => {
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const { user } = useAuth();
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     fetchLabReports();
@@ -240,6 +245,11 @@ const LabReports = () => {
       month: "short",
       day: "numeric",
     });
+  };
+
+  const handleViewReport = (report) => {
+    setSelectedReport(report);
+    setShowReportModal(true);
   };
 
   if (loading) {
@@ -291,69 +301,30 @@ const LabReports = () => {
         </FiltersContainer>
 
         {filteredReports.length > 0 ? (
-          <ReportsGrid>
+          <ReportsContainer>
             {filteredReports.map((report) => (
-              <ReportCard
+              <LabReportCard
                 key={report._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3 }}
-                whileHover={{ y: -5, boxShadow: "0 10px 20px rgba(0,0,0,0.1)" }}
-              >
-                <ReportCardHeader>
-                  <ReportType>{report.reportType}</ReportType>
-                  <Status status={report.status}>
-                    {report.status.charAt(0).toUpperCase() +
-                      report.status.slice(1)}
-                  </Status>
-                </ReportCardHeader>
-
-                <ReportInfo>
-                  <InfoRow>
-                    <InfoLabel>Patient:</InfoLabel>
-                    <InfoValue>{report.patient?.name || "Unknown"}</InfoValue>
-                  </InfoRow>
-                  <InfoRow>
-                    <InfoLabel>Lab Technician:</InfoLabel>
-                    <InfoValue>
-                      {report.technician?.name || "Unknown"}
-                    </InfoValue>
-                  </InfoRow>
-                  <InfoRow>
-                    <InfoLabel>Date:</InfoLabel>
-                    <InfoValue>{formatDate(report.date)}</InfoValue>
-                  </InfoRow>
-                </ReportInfo>
-
-                {report.results && Object.keys(report.results).length > 0 && (
-                  <ResultsList>
-                    {Object.entries(report.results).map(([key, value]) => (
-                      <ResultItem key={key}>
-                        <span>{key}:</span>
-                        <span>{value}</span>
-                      </ResultItem>
-                    ))}
-                  </ResultsList>
-                )}
-
-                <ActionButtons>
-                  <ActionButton>
-                    <FaDownload size={12} />
-                    Download
-                  </ActionButton>
-                </ActionButtons>
-              </ReportCard>
+                report={report}
+                onClick={handleViewReport}
+              />
             ))}
-          </ReportsGrid>
+          </ReportsContainer>
         ) : (
           <EmptyState>
-            <AnimationContainer type="emptyState" height="200px" />
+            <AnimationContainer type="empty" height="200px" />
             <EmptyText>
               No lab reports found matching your filters. Try adjusting your
               search criteria.
             </EmptyText>
           </EmptyState>
         )}
+
+        <ViewLabReport
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          report={selectedReport}
+        />
       </PageContainer>
     </PageTransition>
   );

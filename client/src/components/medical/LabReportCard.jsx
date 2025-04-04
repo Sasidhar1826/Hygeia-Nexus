@@ -282,6 +282,49 @@ const referenceRanges = {
   HbA1c: { min: 4.0, max: 5.6, unit: "%" },
 };
 
+// Improved results display components
+const ResultsGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: ${(props) => props.theme.spacing(2)};
+  margin-bottom: ${(props) => props.theme.spacing(3)};
+`;
+
+const ResultItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  padding: ${(props) => props.theme.spacing(1.5)};
+  border-bottom: 1px solid ${(props) => props.theme.colors.border.main};
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:nth-child(odd) {
+    background-color: ${(props) => props.theme.colors.background.default};
+  }
+`;
+
+const ResultName = styled.div`
+  font-weight: 500;
+  color: ${(props) => props.theme.colors.text.primary};
+`;
+
+const ResultValue = styled.div`
+  font-weight: ${(props) => (props.$abnormal ? "600" : "normal")};
+  color: ${(props) =>
+    props.$abnormal
+      ? props.theme.colors.status.error
+      : props.theme.colors.text.primary};
+  display: flex;
+  align-items: center;
+  gap: ${(props) => props.theme.spacing(1)};
+
+  svg {
+    font-size: 14px;
+  }
+`;
+
 const LabReportCard = ({ report, onClick }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasAbnormalResults = report.hasAbnormalResults || false;
@@ -338,6 +381,18 @@ const LabReportCard = ({ report, onClick }) => {
   function generateSummaryItems() {
     if (!hasComponents) return null;
 
+    const safeRender = (value) => {
+      if (value === null || value === undefined) return "N/A";
+      if (typeof value === "object") {
+        try {
+          return JSON.stringify(value);
+        } catch (e) {
+          return "Complex data";
+        }
+      }
+      return String(value);
+    };
+
     return (
       <SummaryCard>
         <SectionTitle>
@@ -365,11 +420,145 @@ const LabReportCard = ({ report, onClick }) => {
         {abnormalResults.length > 0 &&
           abnormalResults.map((result, index) => (
             <SummaryItem key={index} $abnormal={true}>
-              <FaExclamationTriangle /> {result.name}: {result.value}{" "}
-              {result.unit || ""} (Reference: {getReferenceRange(result.name)})
+              <FaExclamationTriangle /> {safeRender(result.name)}:{" "}
+              {safeRender(result.value)} {result.unit || ""} (Reference:{" "}
+              {getReferenceRange(result.name)})
             </SummaryItem>
           ))}
       </SummaryCard>
+    );
+  }
+
+  // Get patient, technician and doctor names
+  const patientName =
+    report.patientName || (report.patient ? report.patient.name : "Unknown");
+  const patientId =
+    report.patientId || (report.patient ? report.patient._id : "Unknown");
+  const technicianName =
+    report.technicianName ||
+    (report.technician ? report.technician.name : "Unknown");
+  const doctorName =
+    report.doctorName || (report.doctor ? report.doctor.name : "Unknown");
+
+  // Improved function to format and display lab results
+  function formatResultsDisplay(report) {
+    // Ensure safe rendering of any value by converting objects to strings
+    const safeRender = (value) => {
+      if (value === null || value === undefined) return "N/A";
+      if (typeof value === "object") {
+        try {
+          return JSON.stringify(value);
+        } catch (e) {
+          return "Complex data";
+        }
+      }
+      return String(value); // Convert to string to be safe
+    };
+
+    // Case 1: Report has components array - use the structured table
+    if (report.components && report.components.length > 0) {
+      return (
+        <ResultsTable>
+          <ResultsHeaderRow>
+            <ResultsCell>Parameter</ResultsCell>
+            <ResultsCell>Result</ResultsCell>
+            <ResultsCell>Reference Range</ResultsCell>
+            <ResultsCell>Status</ResultsCell>
+          </ResultsHeaderRow>
+
+          {report.components.map((comp, index) => {
+            const abnormal =
+              comp.flagged || isAbnormal(comp.name, safeRender(comp.value));
+            return (
+              <ResultsRow key={index}>
+                <ResultsCell>{safeRender(comp.name)}</ResultsCell>
+                <ResultsCell $abnormal={abnormal}>
+                  {safeRender(comp.value)} {comp.unit || ""}
+                </ResultsCell>
+                <ResultsCell>{getReferenceRange(comp.name)}</ResultsCell>
+                <ResultsCell>
+                  <StatusIndicator $abnormal={abnormal}>
+                    {abnormal ? (
+                      <>
+                        <FaExclamationTriangle />
+                        <span>Abnormal</span>
+                      </>
+                    ) : (
+                      <>
+                        <FaCheck />
+                        <span>Normal</span>
+                      </>
+                    )}
+                  </StatusIndicator>
+                </ResultsCell>
+              </ResultsRow>
+            );
+          })}
+        </ResultsTable>
+      );
+    }
+
+    // Case 2: Report has results as object - display as name-value pairs
+    if (report.results && typeof report.results === "object") {
+      return (
+        <NotesSection>
+          <SectionTitle>
+            <FaChartBar /> Results Summary
+          </SectionTitle>
+          <ResultsGrid>
+            {Object.entries(report.results).map(([key, value], index) => {
+              // Always convert value to a safe display string
+              const displayValue = safeRender(value);
+
+              // Try to determine if value is abnormal based on key name
+              const numValue = parseFloat(displayValue);
+              const isNum = !isNaN(numValue);
+              const range = referenceRanges[key];
+              const abnormal =
+                isNum && range
+                  ? numValue < range.min || numValue > range.max
+                  : false;
+
+              return (
+                <ResultItem key={index}>
+                  <ResultName>{key}:</ResultName>
+                  <ResultValue $abnormal={abnormal}>
+                    {displayValue}
+                    {abnormal && <FaExclamationTriangle />}
+                  </ResultValue>
+                </ResultItem>
+              );
+            })}
+          </ResultsGrid>
+        </NotesSection>
+      );
+    }
+
+    // Case 3: Report has results as string - display as formatted text
+    if (report.results && typeof report.results === "string") {
+      return (
+        <NotesSection>
+          <SectionTitle>
+            <FaChartBar /> Results Summary
+          </SectionTitle>
+          <div
+            style={{
+              margin: "8px 0",
+              whiteSpace: "pre-wrap",
+              lineHeight: "1.5",
+            }}
+            dangerouslySetInnerHTML={{ __html: report.results }}
+          />
+        </NotesSection>
+      );
+    }
+
+    // Fallback for no results
+    return (
+      <NotesSection>
+        <SectionTitle>Results Summary</SectionTitle>
+        <div style={{ margin: "8px 0" }}>No detailed results available.</div>
+      </NotesSection>
     );
   }
 
@@ -377,7 +566,7 @@ const LabReportCard = ({ report, onClick }) => {
     <ReportCard initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
       <ReportHeader onClick={toggleExpand}>
         <ReportTitle>
-          <FaFlask /> {report.testType || "Lab Test"}
+          <FaFlask /> {report.testType || report.reportType || "Lab Test"}
           <ReportBadge $abnormal={hasAbnormalResults}>
             {hasAbnormalResults ? (
               <>
@@ -407,10 +596,16 @@ const LabReportCard = ({ report, onClick }) => {
               <FaUser /> Patient Information
             </SectionTitle>
             <div style={{ margin: "8px 0" }}>
-              <strong>Name:</strong> {report.patientName || "Not specified"}
+              <strong>Name:</strong>{" "}
+              {typeof patientName === "object"
+                ? JSON.stringify(patientName)
+                : patientName}
             </div>
             <div style={{ margin: "8px 0" }}>
-              <strong>ID:</strong> {report.patientId || "Unknown"}
+              <strong>ID:</strong>{" "}
+              {typeof patientId === "object"
+                ? JSON.stringify(patientId)
+                : patientId}
             </div>
           </InfoSection>
 
@@ -419,11 +614,16 @@ const LabReportCard = ({ report, onClick }) => {
               <FaStethoscope /> Provider Information
             </SectionTitle>
             <div style={{ margin: "8px 0" }}>
-              <strong>Ordered By:</strong> {report.doctorName || "Unknown"}
+              <strong>Ordered By:</strong>{" "}
+              {typeof doctorName === "object"
+                ? JSON.stringify(doctorName)
+                : doctorName}
             </div>
             <div style={{ margin: "8px 0" }}>
               <strong>Lab Technician:</strong>{" "}
-              {report.technicianName || "Not specified"}
+              {typeof technicianName === "object"
+                ? JSON.stringify(technicianName)
+                : technicianName}
             </div>
           </InfoSection>
 
@@ -432,69 +632,50 @@ const LabReportCard = ({ report, onClick }) => {
               <FaVial /> Test Information
             </SectionTitle>
             <div style={{ margin: "8px 0" }}>
-              <strong>Test Type:</strong> {report.testType || "Blood Test"}
+              <strong>Test Type:</strong>{" "}
+              {typeof report.testType === "object"
+                ? JSON.stringify(report.testType)
+                : typeof report.reportType === "object"
+                ? JSON.stringify(report.reportType)
+                : report.testType || report.reportType || "Blood Test"}
             </div>
             <div style={{ margin: "8px 0" }}>
-              <strong>Status:</strong> {report.status || "completed"}
+              <strong>Status:</strong>{" "}
+              {typeof report.status === "object"
+                ? JSON.stringify(report.status)
+                : report.status || "completed"}
             </div>
             <div style={{ margin: "8px 0" }}>
-              <strong>Sample:</strong> {report.sample || "Blood"}
+              <strong>Sample:</strong>{" "}
+              {typeof report.sample === "object"
+                ? JSON.stringify(report.sample)
+                : report.sample || "Blood"}
             </div>
           </InfoSection>
         </InfoGrid>
 
-        {hasComponents && (
-          <ResultsTable>
-            <ResultsHeaderRow>
-              <ResultsCell>Parameter</ResultsCell>
-              <ResultsCell>Result</ResultsCell>
-              <ResultsCell>Reference Range</ResultsCell>
-              <ResultsCell>Status</ResultsCell>
-            </ResultsHeaderRow>
-
-            {report.components.map((comp, index) => {
-              const abnormal =
-                comp.flagged || isAbnormal(comp.name, comp.value);
-
-              return (
-                <ResultsRow key={index}>
-                  <ResultsCell>{comp.name}</ResultsCell>
-                  <ResultsCell $abnormal={abnormal}>
-                    {comp.value} {comp.unit || ""}
-                  </ResultsCell>
-                  <ResultsCell>{getReferenceRange(comp.name)}</ResultsCell>
-                  <ResultsCell>
-                    <StatusIndicator $abnormal={abnormal}>
-                      {abnormal ? (
-                        <>
-                          <FaExclamationTriangle />
-                          <span>Abnormal</span>
-                        </>
-                      ) : (
-                        <>
-                          <FaCheck />
-                          <span>Normal</span>
-                        </>
-                      )}
-                    </StatusIndicator>
-                  </ResultsCell>
-                </ResultsRow>
-              );
-            })}
-          </ResultsTable>
-        )}
+        {/* Use the improved results display formatter */}
+        {formatResultsDisplay(report)}
 
         {report.interpretation && (
           <NotesSection>
             <SectionTitle>Interpretation</SectionTitle>
-            <div style={{ margin: "8px 0" }}>{report.interpretation}</div>
+            <div style={{ margin: "8px 0" }}>
+              {typeof report.interpretation === "object"
+                ? JSON.stringify(report.interpretation)
+                : report.interpretation}
+            </div>
           </NotesSection>
         )}
 
         {report.notes && (
           <NotesSection>
             <SectionTitle>Notes</SectionTitle>
-            <div style={{ margin: "8px 0" }}>{report.notes}</div>
+            <div style={{ margin: "8px 0" }}>
+              {typeof report.notes === "object"
+                ? JSON.stringify(report.notes)
+                : report.notes}
+            </div>
           </NotesSection>
         )}
 

@@ -459,6 +459,8 @@ const UploadLabResults = () => {
         status: "completed",
         // Link to the order if one was selected
         orderId: selectedOrder ? selectedOrder._id : null,
+        // Include doctor information from the selected order if available
+        doctor: selectedOrder?.doctor?._id || null,
       };
 
       console.log("Uploading lab report with data:", reportData);

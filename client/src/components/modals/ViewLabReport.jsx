@@ -204,7 +204,7 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
   if (hasComponents) {
     // If we have components array, use that (preferred format)
     displayResults = report.components;
-  } else if (hasResults) {
+  } else if (hasResults && typeof report.results === "object") {
     // Otherwise convert the results object to an array
     displayResults = Object.entries(report.results).map(([name, value]) => ({
       name,
@@ -213,6 +213,15 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
       flagged: report.flaggedResults?.[name] || false,
     }));
   }
+
+  // Get patient and technician details
+  const patientName =
+    report.patientName || (report.patient ? report.patient.name : "Unknown");
+  const patientId =
+    report.patientId || (report.patient ? report.patient._id : "Not specified");
+  const technicianName =
+    report.technicianName ||
+    (report.technician ? report.technician.name : "Unknown");
 
   return (
     <AnimatePresence>
@@ -236,7 +245,7 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
             <ReportHeader>
               <Title>
                 <FaVial />{" "}
-                {report.testType || report.type || "Laboratory Report"}
+                {report.testType || report.reportType || "Laboratory Report"}
               </Title>
               <div style={{ color: "#666", fontSize: "0.9rem" }}>
                 {formattedDate}
@@ -248,7 +257,7 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
                 <InfoTitle>
                   <FaUser /> Patient Information
                 </InfoTitle>
-                <InfoValue>{report.patientName || "Unknown"}</InfoValue>
+                <InfoValue>{patientName}</InfoValue>
                 <div
                   style={{
                     fontSize: "0.9rem",
@@ -256,7 +265,7 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
                     marginTop: "4px",
                   }}
                 >
-                  ID: {report.patientId || "Not specified"}
+                  ID: {patientId}
                 </div>
               </InfoCard>
 
@@ -265,7 +274,7 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
                   <FaCalendarAlt /> Test Details
                 </InfoTitle>
                 <InfoValue>
-                  {report.testType || report.type || "Laboratory Test"}
+                  {report.testType || report.reportType || "Laboratory Test"}
                 </InfoValue>
                 <div
                   style={{
@@ -311,11 +320,25 @@ const ViewLabReport = ({ isOpen, onClose, report }) => {
               ) : (
                 <ResultsRow>
                   <ResultsCell colSpan="4" style={{ textAlign: "center" }}>
-                    No detailed results available
+                    {typeof report.results === "string" ? (
+                      <div
+                        style={{ whiteSpace: "pre-wrap", margin: 0 }}
+                        dangerouslySetInnerHTML={{ __html: report.results }}
+                      />
+                    ) : (
+                      "No detailed results available"
+                    )}
                   </ResultsCell>
                 </ResultsRow>
               )}
             </ResultsTable>
+
+            {report.interpretation && (
+              <Notes>
+                <NotesTitle>Interpretation</NotesTitle>
+                <div>{report.interpretation}</div>
+              </Notes>
+            )}
 
             {report.notes && (
               <Notes>
