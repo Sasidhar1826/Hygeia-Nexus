@@ -1,28 +1,35 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "react-hot-toast";
 import {
   FaCalendarAlt,
   FaSearch,
   FaFilter,
-  FaCheck,
-  FaTimes,
-  FaEye,
   FaEdit,
   FaTrash,
-  FaChevronDown,
+  FaCheck,
+  FaTimes,
   FaInfoCircle,
   FaExclamationTriangle,
+  FaEye,
+  FaChevronDown,
+  FaClock,
+  FaUser,
+  FaUserMd,
+  FaExclamationCircle,
+  FaCheckCircle,
 } from "react-icons/fa";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
-import api from "../../services/api";
-import mockApi from "../../services/mockApi";
 import { format } from "date-fns";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import PageTransition, {
+  containerVariants,
+  itemVariants,
   childVariants,
 } from "../../components/animations/PageTransition";
+import api from "../../services/apiService";
 
 // Page Container with improved background and shadows
 const PageContainer = styled.div`
@@ -438,19 +445,163 @@ const EmptyState = styled(Card)`
 `;
 
 // Animation variants for Framer Motion
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
+// These are already imported from PageTransition.js, so removing duplicates
+// const containerVariants = {
+//   hidden: { opacity: 0 },
+//   visible: {
+//     opacity: 1,
+//     transition: {
+//       staggerChildren: 0.1,
+//     },
+//   },
+// };
+//
+// const itemVariants = {
+//   hidden: { opacity: 0, y: 20 },
+//   visible: { opacity: 1, y: 0 },
+// };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
+// Add this component after the imports or right before the ManageAppointments component
+const StatusTransitionHelp = ({ onClose }) => {
+  const transitions = {
+    pending: ["confirmed", "rejected", "cancelled"],
+    confirmed: ["completed", "cancelled", "no-show"],
+    rejected: [],
+    cancelled: [],
+    completed: [],
+    "no-show": [],
+  };
+
+  const allStatuses = Object.keys(transitions);
+
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: "#F9A825", // amber
+      confirmed: "#4A90E2", // blue
+      completed: "#4CAF50", // green
+      cancelled: "#9E9E9E", // gray
+      rejected: "#F44336", // red
+      "no-show": "#795548", // brown
+    };
+    return colors[status] || "#9E9E9E";
+  };
+
+  return (
+    <div
+      style={{
+        backgroundColor: "white",
+        padding: "20px",
+        borderRadius: "8px",
+        boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+        maxWidth: "600px",
+        position: "relative",
+      }}
+    >
+      <button
+        onClick={onClose}
+        style={{
+          position: "absolute",
+          top: "10px",
+          right: "10px",
+          background: "none",
+          border: "none",
+          fontSize: "16px",
+          cursor: "pointer",
+        }}
+      >
+        ✕
+      </button>
+
+      <h3 style={{ marginBottom: "16px" }}>Appointment Status Transitions</h3>
+      <p style={{ marginBottom: "16px" }}>
+        This matrix shows allowed status transitions:
+      </p>
+
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            borderCollapse: "collapse",
+            width: "100%",
+            textAlign: "center",
+            border: "1px solid #eee",
+          }}
+        >
+          <thead>
+            <tr>
+              <th style={{ padding: "8px", borderBottom: "2px solid #eee" }}>
+                From \ To
+              </th>
+              {allStatuses.map((status) => (
+                <th
+                  key={status}
+                  style={{
+                    padding: "8px",
+                    borderBottom: "2px solid #eee",
+                    backgroundColor: `${getStatusColor(status)}22`,
+                  }}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {allStatuses.map((fromStatus) => (
+              <tr key={fromStatus}>
+                <td
+                  style={{
+                    padding: "8px",
+                    fontWeight: "bold",
+                    backgroundColor: `${getStatusColor(fromStatus)}22`,
+                    borderRight: "2px solid #eee",
+                  }}
+                >
+                  {fromStatus.charAt(0).toUpperCase() + fromStatus.slice(1)}
+                </td>
+                {allStatuses.map((toStatus) => {
+                  const isAllowed =
+                    fromStatus === toStatus ||
+                    transitions[fromStatus].includes(toStatus);
+                  return (
+                    <td
+                      key={`${fromStatus}-${toStatus}`}
+                      style={{
+                        padding: "8px",
+                        backgroundColor: isAllowed ? "#E8F5E9" : "#FFEBEE",
+                        color: isAllowed ? "#2E7D32" : "#C62828",
+                      }}
+                    >
+                      {isAllowed ? "✓" : "✕"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ marginTop: "16px" }}>
+        <h4>Rules:</h4>
+        <ul style={{ paddingLeft: "20px" }}>
+          <li>An appointment can always remain in its current status</li>
+          <li>
+            <strong>Pending</strong> can change to: Confirmed, Rejected, or
+            Cancelled
+          </li>
+          <li>
+            <strong>Confirmed</strong> can change to: Completed, Cancelled, or
+            No-Show
+          </li>
+          <li>
+            <strong>Rejected</strong>, <strong>Cancelled</strong>,{" "}
+            <strong>Completed</strong>, and <strong>No-Show</strong> are
+            terminal states
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
 };
 
 const ManageAppointments = () => {
@@ -470,21 +621,23 @@ const ManageAppointments = () => {
   const [formData, setFormData] = useState({
     status: "",
     notes: "",
+    patient: "",
+    doctor: "",
+    appointmentDate: "",
+    startTime: "",
+    endTime: "",
+    reason: "",
   });
+  const [showTransitionHelp, setShowTransitionHelp] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
 
-        // Use mockApi to get appointments
-        const appointmentsResponse = await mockApi.getAppointments();
-
-        // Use mockApi to get patients
-        const patientsResponse = await mockApi.getPatients();
-
-        // Use mockApi to get doctors
-        const doctorsResponse = await mockApi.getDoctors();
+        const appointmentsResponse = await api.getAppointments();
+        const patientsResponse = await api.getPatients();
+        const doctorsResponse = await api.getDoctors();
 
         setAppointments(
           Array.isArray(appointmentsResponse) ? appointmentsResponse : []
@@ -604,9 +757,21 @@ const ManageAppointments = () => {
   const openEditModal = (appointment) => {
     setModalMode("edit");
     setCurrentAppointment(appointment);
+
+    // Format the date for the input field (YYYY-MM-DD)
+    const formattedDate = appointment.appointmentDate
+      ? new Date(appointment.appointmentDate).toISOString().split("T")[0]
+      : "";
+
     setFormData({
-      status: appointment.status,
+      status: appointment.status || "",
       notes: appointment.notes || "",
+      patient: appointment.patient?._id || "",
+      doctor: appointment.doctor?._id || "",
+      appointmentDate: formattedDate,
+      startTime: appointment.startTime || "",
+      endTime: appointment.endTime || "",
+      reason: appointment.reason || "",
     });
     setIsModalOpen(true);
   };
@@ -622,8 +787,48 @@ const ManageAppointments = () => {
     setCurrentAppointment(null);
   };
 
+  const getValidTransitions = (currentStatus) => {
+    const validTransitions = {
+      pending: ["confirmed", "rejected", "cancelled"],
+      confirmed: ["completed", "cancelled", "no-show"],
+      rejected: [],
+      cancelled: [],
+      completed: [],
+      "no-show": [],
+    };
+
+    // Return all statuses for new appointments or when no current status
+    if (!currentStatus) {
+      return [
+        "pending",
+        "confirmed",
+        "completed",
+        "cancelled",
+        "rejected",
+        "no-show",
+      ];
+    }
+
+    // Return valid transitions for the current status (including the current status itself)
+    return [currentStatus, ...(validTransitions[currentStatus] || [])];
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    // Special handling for status changes
+    if (name === "status" && currentAppointment?.status) {
+      const validTransitions = getValidTransitions(currentAppointment.status);
+
+      // Check if the transition is valid
+      if (!validTransitions.includes(value)) {
+        toast.error(
+          `Cannot change status from '${currentAppointment.status}' to '${value}'`
+        );
+        return; // Don't update the form data
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -641,18 +846,32 @@ const ManageAppointments = () => {
         currentAppointment &&
         currentAppointment._id
       ) {
-        // Use mockApi to update an appointment
-        await mockApi.updateAppointment(currentAppointment._id, formData);
+        // Prepare the full appointment update data
+        const appointmentData = {
+          status: formData.status,
+          notes: formData.notes,
+          patient: formData.patient,
+          doctor: formData.doctor,
+          appointmentDate: formData.appointmentDate,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          reason: formData.reason,
+        };
 
-        // Update local state
-        const updatedAppointments = appointments.map((a) =>
-          a._id === currentAppointment._id ? { ...a, ...formData } : a
+        // Send the update to the API
+        await api.updateAppointment(currentAppointment._id, appointmentData);
+
+        // Refetch appointments to get fresh data with populated fields
+        const appointmentsResponse = await api.getAppointments();
+        setAppointments(
+          Array.isArray(appointmentsResponse) ? appointmentsResponse : []
         );
-        setAppointments(updatedAppointments);
 
-        // Re-apply filters
-        const filtered = applyFilters(updatedAppointments);
-        setFilteredAppointments(filtered);
+        // Apply filters to the updated data
+        const updatedAppointments = Array.isArray(appointmentsResponse)
+          ? appointmentsResponse
+          : [];
+        applyFilters(updatedAppointments);
       } else {
         setError("Invalid operation or missing appointment data");
         return;
@@ -673,8 +892,7 @@ const ManageAppointments = () => {
     }
 
     try {
-      // Use mockApi to delete an appointment
-      await mockApi.deleteAppointment(currentAppointment._id);
+      await api.deleteAppointment(currentAppointment._id);
 
       // Remove the appointment from the local state
       const updatedAppointments = appointments.filter(
@@ -699,9 +917,24 @@ const ManageAppointments = () => {
       return;
     }
 
+    // Find the current appointment to check valid transitions
+    const appointment = appointments.find((a) => a._id === appointmentId);
+    if (!appointment) {
+      setError("Cannot update: Appointment not found");
+      return;
+    }
+
+    // Check if the status transition is valid
+    const validTransitions = getValidTransitions(appointment.status);
+    if (!validTransitions.includes(newStatus)) {
+      toast.error(
+        `Cannot change status from '${appointment.status}' to '${newStatus}'`
+      );
+      return;
+    }
+
     try {
-      // Use mockApi to update an appointment's status
-      await mockApi.updateAppointment(appointmentId, { status: newStatus });
+      await api.updateAppointment(appointmentId, { status: newStatus });
 
       // Update the appointment in the local state
       const updatedAppointments = appointments.map((a) =>
@@ -712,9 +945,15 @@ const ManageAppointments = () => {
       // Apply filters directly to the updated appointments
       const filtered = applyFilters(updatedAppointments);
       setFilteredAppointments(filtered || []);
+
+      toast.success(`Appointment status updated to ${newStatus}`);
     } catch (error) {
       console.error("Error updating appointment status:", error);
-      setError("Failed to update appointment status. Please try again.");
+      if (error.message) {
+        toast.error(error.message);
+      } else {
+        toast.error("Failed to update appointment status");
+      }
     }
   };
 
@@ -1065,31 +1304,123 @@ const ManageAppointments = () => {
                           marginBottom: "24px",
                         }}
                       >
-                        <div>
-                          <Label>Patient</Label>
-                          <p>{currentAppointment.patient?.name || "Unknown"}</p>
-                        </div>
-                        <div>
-                          <Label>Doctor</Label>
-                          <p>{currentAppointment.doctor?.name || "Unknown"}</p>
-                        </div>
-                        <div>
-                          <Label>Date</Label>
-                          <p>
-                            {formatDate(currentAppointment.appointmentDate)}
-                          </p>
-                        </div>
-                        <div>
-                          <Label>Time</Label>
-                          <p>
-                            {formatTime(currentAppointment.startTime)} -{" "}
-                            {formatTime(currentAppointment.endTime)}
-                          </p>
+                        <FormGroup>
+                          <Label htmlFor="patient">Patient</Label>
+                          <FilterSelect
+                            id="patient"
+                            name="patient"
+                            value={formData.patient}
+                            onChange={handleInputChange}
+                            required
+                          >
+                            <option value="">Select Patient</option>
+                            {patients.map((patient) => (
+                              <option key={patient._id} value={patient._id}>
+                                {patient.name}
+                              </option>
+                            ))}
+                          </FilterSelect>
+                        </FormGroup>
+
+                        <FormGroup>
+                          <Label htmlFor="doctor">Doctor</Label>
+                          <FilterSelect
+                            id="doctor"
+                            name="doctor"
+                            value={formData.doctor}
+                            onChange={handleInputChange}
+                            required
+                          >
+                            <option value="">Select Doctor</option>
+                            {doctors.map((doctor) => (
+                              <option key={doctor._id} value={doctor._id}>
+                                {doctor.name} ({doctor.specialty})
+                              </option>
+                            ))}
+                          </FilterSelect>
+                        </FormGroup>
+
+                        <FormGroup>
+                          <Label htmlFor="appointmentDate">Date</Label>
+                          <DateInput
+                            id="appointmentDate"
+                            name="appointmentDate"
+                            type="date"
+                            value={formData.appointmentDate}
+                            onChange={handleInputChange}
+                            required
+                          />
+                        </FormGroup>
+
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <FormGroup style={{ flex: 1 }}>
+                            <Label htmlFor="startTime">Start Time</Label>
+                            <DateInput
+                              id="startTime"
+                              name="startTime"
+                              type="time"
+                              value={formData.startTime}
+                              onChange={handleInputChange}
+                              required
+                            />
+                          </FormGroup>
+
+                          <FormGroup style={{ flex: 1 }}>
+                            <Label htmlFor="endTime">End Time</Label>
+                            <DateInput
+                              id="endTime"
+                              name="endTime"
+                              type="time"
+                              value={formData.endTime}
+                              onChange={handleInputChange}
+                              required
+                            />
+                          </FormGroup>
                         </div>
                       </div>
 
                       <FormGroup>
-                        <Label htmlFor="status">Status</Label>
+                        <Label htmlFor="reason">Reason</Label>
+                        <Textarea
+                          id="reason"
+                          name="reason"
+                          value={formData.reason}
+                          onChange={handleInputChange}
+                          placeholder="Reason for appointment"
+                        />
+                      </FormGroup>
+
+                      <FormGroup>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Label htmlFor="status">Status</Label>
+                          <button
+                            type="button"
+                            onClick={() => setShowTransitionHelp(true)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#4A90E2",
+                              fontSize: "0.875rem",
+                              cursor: "pointer",
+                              padding: "0",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            <i className="fas fa-info-circle"></i> View
+                            transition rules
+                          </button>
+                        </div>
+                      </FormGroup>
+
+                      <FormGroup>
                         <FilterSelect
                           id="status"
                           name="status"
@@ -1097,11 +1428,51 @@ const ManageAppointments = () => {
                           onChange={handleInputChange}
                           required
                         >
-                          <option value="pending">Pending</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
+                          {[
+                            "pending",
+                            "confirmed",
+                            "completed",
+                            "cancelled",
+                            "rejected",
+                            "no-show",
+                          ].map((status) => {
+                            const validTransitions = getValidTransitions(
+                              currentAppointment?.status
+                            );
+                            const isDisabled =
+                              currentAppointment?.status &&
+                              !validTransitions.includes(status);
+
+                            return (
+                              <option
+                                key={status}
+                                value={status}
+                                disabled={isDisabled}
+                                style={
+                                  isDisabled
+                                    ? { color: "#999", fontStyle: "italic" }
+                                    : {}
+                                }
+                              >
+                                {status.charAt(0).toUpperCase() +
+                                  status.slice(1)}
+                                {isDisabled ? " (invalid transition)" : ""}
+                              </option>
+                            );
+                          })}
                         </FilterSelect>
+                        {currentAppointment?.status && (
+                          <small
+                            style={{
+                              color: "#666",
+                              marginTop: "4px",
+                              display: "block",
+                            }}
+                          >
+                            Current status: {currentAppointment.status}. Only
+                            certain status transitions are allowed.
+                          </small>
+                        )}
                       </FormGroup>
 
                       <FormGroup>
@@ -1170,6 +1541,19 @@ const ManageAppointments = () => {
                     </ModalButtons>
                   </motion.div>
                 )}
+              </ModalContent>
+            </Modal>
+          )}
+
+          {showTransitionHelp && (
+            <Modal
+              isOpen={showTransitionHelp}
+              onClose={() => setShowTransitionHelp(false)}
+            >
+              <ModalContent>
+                <StatusTransitionHelp
+                  onClose={() => setShowTransitionHelp(false)}
+                />
               </ModalContent>
             </Modal>
           )}

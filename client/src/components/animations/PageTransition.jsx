@@ -28,6 +28,23 @@ export const pageVariants = {
   },
 };
 
+// Animation variants for framer motion containers with staggered children
+export const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+// Animation variants for individual items in a container
+export const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+};
+
 // Animation variants for child elements
 export const childVariants = {
   initial: {
@@ -87,4 +104,6 @@ PageTransition.propTypes = {
   transition: PropTypes.object,
 };
 
+// Export both as default and named export for flexibility
+export { PageTransition };
 export default PageTransition;

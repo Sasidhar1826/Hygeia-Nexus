@@ -14,11 +14,9 @@ import {
   FaArrowRight,
 } from "react-icons/fa";
 import Card from "../../components/ui/Card";
-import api from "../../services/api";
 import { Link } from "react-router-dom";
-import mockApi from "../../services/mockApi";
-
 // Import Chart.js in a way that works with React
+import api from "../../services/apiService";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -402,10 +400,10 @@ const Dashboard = () => {
       try {
         setLoading(true);
 
-        // Use mockApi to get data
-        const patients = await mockApi.getPatients();
-        const doctors = await mockApi.getDoctors();
-        const appointments = await mockApi.getAppointments();
+        // Use api to get data
+        const patients = await api.getPatients();
+        const doctors = await api.getDoctors();
+        const appointments = await api.getAppointments();
 
         // Calculate stats
         const pendingAppointments = appointments.filter(

@@ -21,8 +21,7 @@ import {
 import Card from "../../components/ui/Card";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
-import mockApi from "../../services/mockApi";
-
+import api from "../../services/apiService";
 // Styled components
 const StatsGrid = styled.div`
   display: grid;
@@ -323,55 +322,20 @@ const DoctorDashboard = () => {
     const fetchDoctorData = async () => {
       try {
         setLoading(true);
+        // Fetch doctor data
+        const doctorData = await api.getUserById(user._id);
 
-        // Fetch today's appointments
-        const today = new Date().toISOString().split("T")[0];
-        const appointments = await mockApi.getAppointments({
+        // Fetch upcoming appointments
+        const appointments = await api.getAppointments({
           doctor: user._id,
-          date: today,
+          status: "upcoming",
+          limit: 5,
         });
 
-        // Fetch pending appointments
-        const pendingAppointments = await mockApi.getAppointments({
-          doctor: user._id,
-          status: "pending",
-        });
+        // Fetch recent patients
+        const recentPatients = await api.getRecentPatients(user._id);
 
-        // Fetch all unique patients for this doctor
-        const allAppointments = await mockApi.getAppointments({
-          doctor: user._id,
-        });
-
-        // Extract unique patient IDs
-        const uniquePatientIds = [
-          ...new Set(
-            allAppointments.map((app) => app.patient?._id).filter((id) => id)
-          ),
-        ];
-
-        // Get recent patients (last 5 unique patients)
-        const recentPatients = [];
-        for (const patientId of uniquePatientIds.slice(0, 5)) {
-          const patientDetails = await mockApi.getPatientById(patientId);
-          if (patientDetails) {
-            recentPatients.push(patientDetails);
-          }
-        }
-
-        setDoctorData({
-          todayAppointments: appointments,
-          pendingAppointments: pendingAppointments,
-          recentPatients: recentPatients,
-          stats: {
-            totalPatients: uniquePatientIds.length,
-            todayAppointments: appointments.length,
-            pendingAppointments: pendingAppointments.length,
-            completedAppointments: allAppointments.filter(
-              (app) => app.status === "completed"
-            ).length,
-          },
-        });
-
+        setDoctorData(doctorData);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching doctor data:", error);
@@ -379,7 +343,9 @@ const DoctorDashboard = () => {
       }
     };
 
-    fetchDoctorData();
+    if (user && user._id) {
+      fetchDoctorData();
+    }
   }, [user]);
 
   const formatDate = (dateString) => {

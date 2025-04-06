@@ -17,8 +17,7 @@ import {
 import Card from "../../components/ui/Card";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
-import mockApi from "../../services/mockApi";
-
+import api from "../../services/apiService";
 // Styled components
 const StatsGrid = styled.div`
   display: grid;
@@ -301,6 +300,7 @@ const PatientDashboard = () => {
     medications: [],
     recentRecords: [],
   });
+  const [errorMessages, setErrorMessages] = useState({});
   const { user } = useAuth();
 
   useEffect(() => {
@@ -308,15 +308,24 @@ const PatientDashboard = () => {
     const fetchPatientData = async () => {
       try {
         setLoading(true);
+        // Reset error messages
+        setErrorMessages({});
 
         // Fetch patient's appointments
-        const appointments = await mockApi.getAppointments({
+        const appointments = await api.getAppointments({
           patient: user._id,
           status: ["pending", "confirmed"], // Only get upcoming appointments
         });
 
+        // Ensure appointments is an array before sorting
+        const appointmentsArray = Array.isArray(appointments)
+          ? appointments
+          : appointments && appointments.data
+          ? appointments.data
+          : [];
+
         // Sort appointments by date (most recent first)
-        const sortedAppointments = appointments.sort(
+        const sortedAppointments = [...appointmentsArray].sort(
           (a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate)
         );
 
@@ -324,7 +333,10 @@ const PatientDashboard = () => {
         const formattedAppointments = sortedAppointments.map((appointment) => ({
           id: appointment._id,
           doctorName: appointment.doctor
-            ? appointment.doctor.name
+            ? appointment.doctor.name ||
+              (appointment.doctor.user
+                ? appointment.doctor.user.name
+                : "Unknown Doctor")
             : "Unknown Doctor",
           date: appointment.appointmentDate,
           time: appointment.startTime,
@@ -334,9 +346,44 @@ const PatientDashboard = () => {
         }));
 
         // Fetch lab reports for the patient
-        const labReports = await mockApi.getLabReports({
-          patient: user._id,
-        });
+        let labReports = [];
+        let labReportError = null;
+        try {
+          const labReportsResponse = await api.getLabReports({
+            patient: user._id,
+          });
+
+          // Handle different possible response formats
+          if (Array.isArray(labReportsResponse)) {
+            labReports = labReportsResponse;
+          } else if (
+            labReportsResponse &&
+            Array.isArray(labReportsResponse.data)
+          ) {
+            labReports = labReportsResponse.data;
+          } else if (labReportsResponse && labReportsResponse.message) {
+            // Log the error message but don't interrupt the dashboard loading
+            console.warn("Lab reports message:", labReportsResponse.message);
+            labReportError = labReportsResponse.message;
+          } else {
+            console.warn(
+              "Unexpected lab reports response format:",
+              labReportsResponse
+            );
+            labReports = [];
+          }
+        } catch (labError) {
+          console.error("Error fetching lab reports:", labError);
+          labReportError = labError.message || "Failed to load lab reports";
+        }
+
+        // Update error state if needed
+        if (labReportError) {
+          setErrorMessages((prev) => ({
+            ...prev,
+            labReports: labReportError,
+          }));
+        }
 
         // For now, we'll use mock data for medications and medical records
         // In a real app, these would be fetched from the API as well
@@ -575,6 +622,13 @@ const PatientDashboard = () => {
       </SectionHeader>
 
       <Card>
+        {errorMessages.labReports && (
+          <div
+            style={{ padding: "1rem", textAlign: "center", color: "#e74c3c" }}
+          >
+            {errorMessages.labReports}
+          </div>
+        )}
         <AppointmentsList>
           {patientData?.labReports?.map((report) => (
             <AppointmentItem key={report._id || report.id}>
@@ -609,14 +663,14 @@ const PatientDashboard = () => {
               </AppointmentStatus>
             </AppointmentItem>
           ))}
-          {(!patientData?.labReports ||
-            patientData.labReports.length === 0) && (
-            <div
-              style={{ padding: "1rem", textAlign: "center", color: "#666" }}
-            >
-              No lab reports found.
-            </div>
-          )}
+          {(!patientData?.labReports || patientData.labReports.length === 0) &&
+            !errorMessages.labReports && (
+              <div
+                style={{ padding: "1rem", textAlign: "center", color: "#666" }}
+              >
+                No lab reports found.
+              </div>
+            )}
         </AppointmentsList>
       </Card>
 

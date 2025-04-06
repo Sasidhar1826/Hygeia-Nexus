@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
+import api from "../../services/apiService";
 import {
   FaBrain,
   FaTimesCircle,
@@ -21,8 +22,6 @@ import {
   FaPaperPlane,
   FaInfoCircle,
 } from "react-icons/fa";
-import mockApi from "../../services/mockApi";
-
 const ModalOverlay = styled(motion.div)`
   position: fixed;
   top: 0;
@@ -578,7 +577,7 @@ const SmartDiagnosisModal = ({ isOpen, onClose, patientId, onViewHistory }) => {
 
   const fetchPatientBasicInfo = async () => {
     try {
-      const patientData = await mockApi.getPatientById(patientId);
+      const patientData = await api.getPatientById(patientId);
       setPatientData(patientData);
       setLoading(false);
     } catch (error) {
@@ -639,7 +638,7 @@ const SmartDiagnosisModal = ({ isOpen, onClose, patientId, onViewHistory }) => {
       };
 
       // Use the v2 API that was enhanced with support for Gemini
-      const results = await mockApi.getAIDiagnosticSuggestionV2(
+      const results = await api.getAIDiagnosticSuggestionV2(
         patientId,
         diagnosticRequest
       );
@@ -672,7 +671,7 @@ const SmartDiagnosisModal = ({ isOpen, onClose, patientId, onViewHistory }) => {
       };
 
       // Save to patient record using the mockApi
-      const result = await mockApi.saveAIDiagnosticSuggestion(
+      const result = await api.saveAIDiagnosticSuggestion(
         patientId,
         diagnosisRecord
       );
@@ -738,7 +737,7 @@ Please respond to the doctor's question as a medical AI assistant. Keep your res
 `;
 
       // Call Gemini API
-      const response = await mockApi.callGeminiAPI(
+      const response = await api.callGeminiAPI(
         prompt,
         "AIzaSyDhRb7fLT6gV0zNUcQaZGDtwmnmYRjmZU0"
       );

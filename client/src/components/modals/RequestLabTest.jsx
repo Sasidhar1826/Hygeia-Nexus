@@ -7,9 +7,9 @@ import {
   FaTimes,
   FaExclamationTriangle,
 } from "react-icons/fa";
-import mockAuthService from "../../services/mockApi";
-import mockApi from "../../services/mockApi";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../services/apiService";
+import { toast } from "react-hot-toast";
 
 const ModalBackdrop = styled(motion.div)`
   position: fixed;
@@ -244,7 +244,7 @@ const RequestLabTest = ({
       if (!patient && patientId) {
         setLoading(true);
         try {
-          const data = await mockApi.getPatientById(patientId);
+          const data = await api.getPatientById(patientId);
           setFetchedPatient(data);
         } catch (error) {
           console.error("Error fetching patient data:", error);
@@ -263,42 +263,27 @@ const RequestLabTest = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
-
     try {
-      const currentPatient = fetchedPatient || patient;
-      if (!currentPatient) {
-        throw new Error("Patient data not available");
-      }
+      setIsSubmitting(true);
 
-      const patientName =
-        currentPatient.firstName && currentPatient.lastName
-          ? `${currentPatient.firstName} ${currentPatient.lastName}`
-          : currentPatient.name || "Unknown Patient";
-
-      await mockAuthService.createLabOrder({
-        patient: currentPatient._id,
-        patientName: patientName,
-        doctor: doctorId || user?._id,
-        testType: testType,
-        status: "pending",
+      // Create the lab order
+      const labOrder = {
+        patient: patientId,
+        doctor: user._id,
+        reportType: testType,
         urgency: urgency,
         notes: notes,
-        department: departmentId || user?.department || "1",
-      });
+        status: "pending",
+      };
 
-      setIsSubmitted(true);
+      // Submit the lab order
+      await api.createLabOrder(labOrder);
 
-      setTimeout(() => {
-        setTestType("Blood Test");
-        setNotes("");
-        setUrgency("Normal");
-        setIsSubmitted(false);
-        onClose();
-      }, 2000);
+      toast.success("Lab test requested successfully");
+      onClose();
     } catch (error) {
-      console.error("Error creating lab order:", error);
-    } finally {
+      console.error("Error requesting lab test:", error);
+      toast.error("Failed to request lab test");
       setIsSubmitting(false);
     }
   };

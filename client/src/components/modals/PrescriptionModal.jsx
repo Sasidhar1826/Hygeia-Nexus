@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
+import api from "../../services/apiService";
 import {
   FaSearch,
   FaPills,
   FaSpinner,
   FaFilePrescription,
 } from "react-icons/fa";
-import mockApi from "../../services/mockApi";
 
 const ModalOverlay = styled(motion.div)`
   position: fixed;
@@ -419,7 +419,7 @@ const PrescriptionModal = ({
       try {
         setLoading(true);
         setError(null);
-        const result = await mockApi.getMedications();
+        const result = await api.getMedications();
         setMedications(result);
         setFilteredMedications(result);
       } catch (err) {
@@ -500,7 +500,7 @@ const PrescriptionModal = ({
         doctorId: doctorId,
       };
 
-      await mockApi.addPrescriptionToPatient(patientId, prescriptionToAdd);
+      await api.addPrescriptionToPatient(patientId, prescriptionToAdd);
       onClose(true); // Pass true to indicate success for refreshing
     } catch (err) {
       console.error("Error adding prescription:", err);

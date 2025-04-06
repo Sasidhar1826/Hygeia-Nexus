@@ -14,7 +14,7 @@ import {
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
-import mockApi from "../services/mockApi";
+import api from "../services/apiService";
 
 const PageContainer = styled.div`
   display: flex;
@@ -245,6 +245,7 @@ const AIDiagnostics = () => {
     const checkApiKey = async () => {
       try {
         const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
         console.log(
           "Environment API key check:",
           apiKey ? "Found key" : "No key found"
@@ -276,7 +277,7 @@ const AIDiagnostics = () => {
         );
 
         // Send a simple test message to the Gemini API
-        const testResult = await mockApi.getMedicalChatResponse(
+        const testResult = await api.getMedicalChatResponse(
           "Hello, this is a test message to verify the API connection is working correctly.",
           []
         );
@@ -339,8 +340,8 @@ const AIDiagnostics = () => {
 
       setChatHistory((prev) => [...prev, userMessage]);
 
-      // Get analysis from mockApi
-      const analysisResults = await mockApi.analyzeSymptomsAI(selectedSymptoms);
+      // Get analysis from API
+      const analysisResults = await api.analyzeSymptomsAI(selectedSymptoms);
 
       // Save the results
       setResults(analysisResults);
@@ -428,8 +429,8 @@ const AIDiagnostics = () => {
     setIsLoading(true);
 
     try {
-      // Get response from mockApi - this will use Gemini API if available
-      const response = await mockApi.getMedicalChatResponse(
+      // Get response from API - this will use Gemini API if available
+      const response = await api.getMedicalChatResponse(
         chatMessage,
         chatHistory
       );

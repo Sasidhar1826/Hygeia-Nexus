@@ -33,11 +33,11 @@ import {
 } from "chart.js";
 import AnimationContainer from "../components/animations/AnimationContainer";
 import { useAuth } from "../context/AuthContext";
-import mockAuthService from "../services/mockApi";
 import PatientDashboard from "./patient/PatientDashboard";
 import AdminDashboard from "./admin/Dashboard";
 import DoctorDashboard from "./doctor/DoctorDashboard";
 import LabTechnicianDashboard from "./lab/LabTechnicianDashboard";
+
 
 // Register ChartJS components
 ChartJS.register(

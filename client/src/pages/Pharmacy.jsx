@@ -14,8 +14,8 @@ import {
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
-import mockApi from "../services/mockApi";
 import { useAuth } from "../context/AuthContext";
+import api from "../services/apiService";
 
 const PageContainer = styled.div`
   display: flex;
@@ -423,8 +423,8 @@ const MedicationModal = ({ isOpen, onClose, medication, onSave }) => {
 
     try {
       const result = medication
-        ? await mockApi.updateMedication(medication.id, formData)
-        : await mockApi.addMedication(formData);
+        ? await api.updateMedication(medication.id, formData)
+        : await api.addMedication(formData);
 
       onSave(result);
       onClose();
@@ -647,7 +647,7 @@ const Pharmacy = () => {
           }
         }
 
-        const data = await mockApi.getMedications(filters);
+        const data = await api.getMedications(filters);
         setMedications(data);
       } catch (err) {
         console.error("Error fetching medications:", err);
@@ -663,7 +663,7 @@ const Pharmacy = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const data = await mockApi.getMedicationCategories();
+        const data = await api.getMedicationCategories();
         setCategories(data);
       } catch (err) {
         console.error("Error fetching categories:", err);
@@ -705,7 +705,7 @@ const Pharmacy = () => {
     if (!medicationToDelete) return;
 
     try {
-      await mockApi.deleteMedication(medicationToDelete.id);
+      await api.deleteMedication(medicationToDelete.id);
       setMedications(
         medications.filter((med) => med.id !== medicationToDelete.id)
       );

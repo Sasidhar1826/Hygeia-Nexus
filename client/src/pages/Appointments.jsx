@@ -19,12 +19,14 @@ import {
   FaMoneyBillWave,
   FaFlask,
   FaVial,
+  FaTools,
 } from "react-icons/fa";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
-import api from "../services/api";
-import mockApi from "../services/mockApi";
 import { useAuth } from "../context/AuthContext";
+import api from "../services/apiService";
+import { toast } from "react-hot-toast";
+import { diagnoseAppointment } from "../services/api";
 
 // Initialize the localizer
 const localizer = momentLocalizer(moment);
@@ -367,8 +369,10 @@ const statusOptions = [
   { value: "all", label: "All Status" },
   { value: "pending", label: "Pending" },
   { value: "confirmed", label: "Confirmed" },
-  { value: "cancelled", label: "Cancelled" },
   { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "rejected", label: "Rejected" },
+  { value: "no-show", label: "No-Show" },
 ];
 
 const Appointments = () => {
@@ -399,11 +403,15 @@ const Appointments = () => {
         // Fetch lab orders if user is a patient
         if (user && user.role === "patient") {
           try {
-            const labOrdersResponse = await mockApi.getLabOrders({
+            const labOrdersResponse = await api.getLabs({
               patient: user._id,
+              status: "ordered", // Only get ordered lab tests
             });
             console.log("Fetched lab orders:", labOrdersResponse);
-            setLabOrders(labOrdersResponse);
+            // Ensure we have an array, even if empty
+            setLabOrders(
+              Array.isArray(labOrdersResponse) ? labOrdersResponse : []
+            );
           } catch (error) {
             console.error("Error fetching lab orders:", error);
             setLabOrders([]);
@@ -439,100 +447,168 @@ const Appointments = () => {
       }
 
       // Use user ID for filtering if the user is a patient or doctor
-      if (user.role === "patient") {
+      if (user && user.role === "patient") {
         queryParams.patient = user._id;
-      } else if (user.role === "doctor") {
+      } else if (user && user.role === "doctor") {
         queryParams.doctor = user._id;
       }
 
-      // Use mockApi instead of direct API call
-      const response = await mockApi.getAppointments(queryParams);
-      console.log("Retrieved appointments:", response);
+      console.log("Fetching appointments with params:", queryParams);
 
-      // Transform appointments for calendar
-      const formattedAppointments = response.map((appointment) => {
-        // Parse date and time correctly
-        let startDateTime, endDateTime;
+      // Fetch appointments from api
+      const data = await api.getAppointments(queryParams);
+      console.log("Raw appointment data:", data);
 
-        try {
-          const datePart = appointment.appointmentDate;
-          // Handle different time formats
-          const startTimePart = appointment.startTime;
-          const endTimePart = appointment.endTime;
+      // Ensure data is an array before setting it
+      let appointmentArray = Array.isArray(data) ? data : [];
 
-          // Create date objects
-          if (startTimePart.includes("AM") || startTimePart.includes("PM")) {
-            // 12-hour format with AM/PM
-            startDateTime = moment(
-              `${datePart} ${startTimePart}`,
-              "YYYY-MM-DD hh:mm A"
-            ).toDate();
-            endDateTime = moment(
-              `${datePart} ${endTimePart}`,
-              "YYYY-MM-DD hh:mm A"
-            ).toDate();
-          } else {
-            // 24-hour format
-            startDateTime = moment(
-              `${datePart} ${startTimePart}`,
-              "YYYY-MM-DD HH:mm"
-            ).toDate();
-            endDateTime = moment(
-              `${datePart} ${endTimePart}`,
-              "YYYY-MM-DD HH:mm"
-            ).toDate();
+      // Handle object response with data property
+      if (
+        !Array.isArray(data) &&
+        data &&
+        typeof data === "object" &&
+        data.data
+      ) {
+        appointmentArray = Array.isArray(data.data) ? data.data : [];
+      }
+
+      // Transform appointments for the calendar (adding start and end Date objects)
+      appointmentArray = appointmentArray
+        .map((appointment) => {
+          // Ensure we have valid appointment data
+          if (!appointment || !appointment.appointmentDate) {
+            console.warn("Invalid appointment data:", appointment);
+            return null;
           }
-        } catch (err) {
-          console.error("Error parsing date/time:", err, appointment);
-          // Fallback to a default date if parsing fails
-          startDateTime = new Date();
-          endDateTime = new Date();
-          endDateTime.setHours(endDateTime.getHours() + 1);
-        }
 
-        console.log("Parsed appointment:", {
-          id: appointment._id,
-          date: appointment.appointmentDate,
-          startTime: appointment.startTime,
-          endTime: appointment.endTime,
-          parsedStart: startDateTime,
-          parsedEnd: endDateTime,
-        });
+          try {
+            // Create start Date object combining appointmentDate and startTime
+            const startDateTime = moment(
+              `${moment(appointment.appointmentDate).format("YYYY-MM-DD")} ${
+                appointment.startTime
+              }`,
+              "YYYY-MM-DD HH:mm"
+            ).toDate();
 
-        return {
-          id: appointment._id,
-          title:
-            user.role === "patient"
-              ? `Dr. ${appointment.doctor?.name || "Unknown"} - ${
-                  appointment.reason || "Consultation"
-                }`
-              : `${appointment.patient?.name || "Unknown"} - ${
-                  appointment.reason || "Consultation"
-                }`,
-          start: startDateTime,
-          end: endDateTime,
-          type: appointment.type || "in-person",
-          status: appointment.status || "pending",
-          resource: appointment,
-        };
-      });
+            // Create end Date object combining appointmentDate and endTime
+            const endDateTime = moment(
+              `${moment(appointment.appointmentDate).format("YYYY-MM-DD")} ${
+                appointment.endTime
+              }`,
+              "YYYY-MM-DD HH:mm"
+            ).toDate();
 
-      console.log(
-        "Formatted appointments for calendar:",
-        formattedAppointments
-      );
-      setAppointments(formattedAppointments);
+            // Add fallback data for doctor and patient if missing
+            let doctor = appointment.doctor;
+            if (!doctor || (typeof doctor === "object" && !doctor.name)) {
+              doctor = {
+                name: doctor?.name || "Unknown Doctor",
+                _id: doctor?._id || "unknown",
+                specialty: doctor?.specialty || "General",
+                email: doctor?.email || "",
+                profileImage: doctor?.profileImage || "",
+              };
+            }
+
+            let patient = appointment.patient;
+            if (!patient || (typeof patient === "object" && !patient.name)) {
+              patient = {
+                name: patient?.name || "Unknown Patient",
+                _id: patient?._id || "unknown",
+                email: patient?.email || "",
+                profileImage: patient?.profileImage || "",
+              };
+            }
+
+            // Create a descriptive title for the appointment
+            let title = "Appointment";
+            if (appointment.reason) {
+              title = appointment.reason;
+            }
+
+            // Add doctor/patient information to title if available
+            if (doctor && doctor.name) {
+              title = `${title} with Dr. ${doctor.name}`;
+            } else if (patient && patient.name) {
+              title = `${title} for ${patient.name}`;
+            }
+
+            return {
+              ...appointment,
+              doctor,
+              patient,
+              title,
+              start: startDateTime,
+              end: endDateTime,
+              resource: {
+                ...appointment,
+                doctor,
+                patient,
+              }, // Store the original appointment data with fallbacks
+            };
+          } catch (error) {
+            console.error("Error processing appointment:", appointment, error);
+            return null;
+          }
+        })
+        .filter((appointment) => appointment !== null); // Remove any null appointments
+
+      console.log("Transformed appointments for calendar:", appointmentArray);
+      setAppointments(appointmentArray);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching appointments:", error);
       setError("Failed to load appointments. Please try again later.");
       setLoading(false);
+      setAppointments([]);
     }
   };
 
   const handleSelectEvent = (event) => {
-    setSelectedAppointment(event.resource);
+    // Check if we have resource data (original appointment data)
+    const appointmentData = event.resource || event;
+    console.log("Selected appointment:", appointmentData);
+
+    // Set initial data to show the modal quickly
+    setSelectedAppointment(appointmentData);
     setShowModal(true);
+
+    // Then try to refetch with complete data if needed
+    const refetchIfIncomplete = async () => {
+      try {
+        // Check if doctor or patient data is incomplete
+        if (appointmentData && appointmentData._id) {
+          const needsRefetch =
+            (appointmentData.doctor &&
+              (typeof appointmentData.doctor === "string" ||
+                (typeof appointmentData.doctor === "object" &&
+                  !appointmentData.doctor.name))) ||
+            (appointmentData.patient &&
+              (typeof appointmentData.patient === "string" ||
+                (typeof appointmentData.patient === "object" &&
+                  !appointmentData.patient.name)));
+
+          if (needsRefetch) {
+            setLoading(true);
+            const fullAppointmentData = await api.refetchAppointmentIfNeeded(
+              appointmentData
+            );
+            console.log(
+              "Refetched appointment with complete data:",
+              fullAppointmentData
+            );
+            setSelectedAppointment(fullAppointmentData);
+            setLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error refetching appointment details:", error);
+        // Keep using the original data if refetch fails
+        setLoading(false);
+      }
+    };
+
+    refetchIfIncomplete();
   };
 
   const handleSelectSlot = ({ start, end }) => {
@@ -546,69 +622,76 @@ const Appointments = () => {
     setSelectedAppointment(null);
   };
 
-  const handleCancelAppointment = async () => {
+  const handleCancelAppointment = async (appointmentId) => {
     try {
-      setIsSubmitting(true);
+      // For confirmed appointments, ask for confirmation and reason
+      const appointmentToCancel = appointments.find(
+        (app) => app._id === appointmentId
+      );
 
-      // Use mockApi to update the appointment
-      const updatedAppointment = await mockApi.updateAppointment(
-        selectedAppointment._id,
-        {
-          ...selectedAppointment,
-          status: "cancelled",
+      let cancellationReason = "";
+      if (appointmentToCancel.status === "confirmed") {
+        if (
+          !confirm(
+            "Are you sure you want to cancel this confirmed appointment?"
+          )
+        ) {
+          return; // User cancelled the operation
         }
-      );
+        cancellationReason = prompt(
+          "Please provide a reason for cancellation (optional):"
+        );
+      }
 
-      // Update the local state to reflect the change
-      const updatedAppointments = appointments.map((app) =>
-        app.id === selectedAppointment._id
-          ? {
-              ...app,
-              status: "cancelled",
-              resource: updatedAppointment,
-            }
-          : app
-      );
+      await api.cancelAppointment(appointmentId, cancellationReason);
 
-      setAppointments(updatedAppointments);
-      setIsSubmitting(false);
-      handleCloseModal();
+      // Update appointments state
+      if (Array.isArray(appointments)) {
+        setAppointments(
+          appointments.map((apt) =>
+            apt._id === appointmentId ? { ...apt, status: "cancelled" } : apt
+          )
+        );
+      }
 
-      // Show success message
-      setSuccessMessage("Appointment cancelled successfully");
-      setTimeout(() => setSuccessMessage(""), 3000);
+      toast.success("Appointment cancelled successfully");
+
+      // Close modal if it's open
+      if (showModal && selectedAppointment?._id === appointmentId) {
+        handleCloseModal();
+      }
     } catch (error) {
       console.error("Error cancelling appointment:", error);
-      setErrorMessage("Failed to cancel appointment. Please try again.");
-      setIsSubmitting(false);
+      toast.error("Failed to cancel appointment");
     }
   };
 
   const handleConfirmAppointment = async () => {
     try {
       setIsSubmitting(true);
+      setErrorMessage("");
 
-      // Use mockApi to update the appointment
-      const updatedAppointment = await mockApi.updateAppointment(
+      // Use the new acceptAppointment function
+      const updatedAppointment = await api.acceptAppointment(
         selectedAppointment._id,
-        {
-          ...selectedAppointment,
-          status: "confirmed",
-        }
+        "Appointment confirmed by doctor"
       );
 
       // Update the local state to reflect the change
-      const updatedAppointments = appointments.map((app) =>
-        app.id === selectedAppointment._id
-          ? {
-              ...app,
-              status: "confirmed",
-              resource: updatedAppointment,
-            }
-          : app
-      );
+      if (Array.isArray(appointments)) {
+        const updatedAppointments = appointments.map((app) =>
+          app._id === selectedAppointment._id
+            ? {
+                ...app,
+                status: "confirmed",
+                resource: updatedAppointment,
+              }
+            : app
+        );
 
-      setAppointments(updatedAppointments);
+        setAppointments(updatedAppointments);
+      }
+
       setIsSubmitting(false);
       handleCloseModal();
 
@@ -622,31 +705,79 @@ const Appointments = () => {
     }
   };
 
+  const handleRejectAppointment = async () => {
+    try {
+      // First, prompt for a reason
+      const reason = prompt(
+        "Please provide a reason for rejecting this appointment:"
+      );
+      if (!reason) {
+        // User cancelled or provided no reason
+        return;
+      }
+
+      setIsSubmitting(true);
+      setErrorMessage("");
+
+      // Use the new rejectAppointment function
+      const updatedAppointment = await api.rejectAppointment(
+        selectedAppointment._id,
+        reason
+      );
+
+      // Update the local state to reflect the change
+      if (Array.isArray(appointments)) {
+        const updatedAppointments = appointments.map((app) =>
+          app._id === selectedAppointment._id
+            ? {
+                ...app,
+                status: "rejected",
+                resource: updatedAppointment,
+              }
+            : app
+        );
+
+        setAppointments(updatedAppointments);
+      }
+
+      setIsSubmitting(false);
+      handleCloseModal();
+
+      // Show success message
+      setSuccessMessage("Appointment rejected successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Error rejecting appointment:", error);
+      setErrorMessage("Failed to reject appointment. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
   const handleCompleteAppointment = async () => {
     try {
       setIsSubmitting(true);
 
-      // Use mockApi to update the appointment
-      const updatedAppointment = await mockApi.updateAppointment(
+      // Use the new completeAppointment function
+      const updatedAppointment = await api.completeAppointment(
         selectedAppointment._id,
-        {
-          ...selectedAppointment,
-          status: "completed",
-        }
+        "Appointment completed by doctor"
       );
 
       // Update the local state to reflect the change
-      const updatedAppointments = appointments.map((app) =>
-        app.id === selectedAppointment._id
-          ? {
-              ...app,
-              status: "completed",
-              resource: updatedAppointment,
-            }
-          : app
-      );
+      if (Array.isArray(appointments)) {
+        const updatedAppointments = appointments.map((app) =>
+          app._id === selectedAppointment._id
+            ? {
+                ...app,
+                status: "completed",
+                resource: updatedAppointment,
+              }
+            : app
+        );
 
-      setAppointments(updatedAppointments);
+        setAppointments(updatedAppointments);
+      }
+
       setIsSubmitting(false);
       handleCloseModal();
 
@@ -660,42 +791,281 @@ const Appointments = () => {
     }
   };
 
+  const handleMarkNoShow = async () => {
+    try {
+      setIsSubmitting(true);
+
+      // Use the new markAppointmentNoShow function
+      const updatedAppointment = await api.markAppointmentNoShow(
+        selectedAppointment._id,
+        "Patient did not show up for the appointment"
+      );
+
+      // Update the local state to reflect the change
+      if (Array.isArray(appointments)) {
+        const updatedAppointments = appointments.map((app) =>
+          app._id === selectedAppointment._id
+            ? {
+                ...app,
+                status: "no-show",
+                resource: updatedAppointment,
+              }
+            : app
+        );
+
+        setAppointments(updatedAppointments);
+      }
+
+      setIsSubmitting(false);
+      handleCloseModal();
+
+      // Show success message
+      setSuccessMessage("Appointment marked as no-show");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Error marking appointment as no-show:", error);
+      setErrorMessage("Failed to mark as no-show. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDiagnoseAppointment = async (appointmentId) => {
+    // Only show this function for admin users
+    if (user.userType !== "admin") {
+      toast.info("Only admin users can diagnose appointments");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const result = await diagnoseAppointment(appointmentId);
+
+      // Show a modal with the diagnostic information
+      toast.success("Diagnostic information retrieved");
+
+      // Create a formatted message with the diagnostic info
+      const diagnosticInfo = result.diagnostic;
+
+      const formattedDiagnostic = `
+        ## Appointment Diagnostic (ID: ${diagnosticInfo.appointmentId})
+        
+        **Current Status:** ${diagnosticInfo.currentStatus}
+        **Stored Old Status:** ${diagnosticInfo.storedOldStatus || "None"}
+        
+        ### References
+        - Has Broken References: ${
+          diagnosticInfo.references.hasBrokenReferences ? "Yes" : "No"
+        }
+        - Doctor Exists: ${
+          diagnosticInfo.references.doctorExists ? "Yes" : "No"
+        }
+        - Patient Exists: ${
+          diagnosticInfo.references.patientExists ? "Yes" : "No"
+        }
+        ${
+          diagnosticInfo.references.issues.length > 0
+            ? `- Issues: ${diagnosticInfo.references.issues.join(", ")}`
+            : ""
+        }
+        
+        ### Valid Transitions
+        Current status (${diagnosticInfo.currentStatus}) can transition to: ${
+        diagnosticInfo.validTransitionsForCurrentStatus.length > 0
+          ? diagnosticInfo.validTransitionsForCurrentStatus.join(", ")
+          : "None"
+      }
+        
+        ### Status History
+        ${diagnosticInfo.statusHistory
+          .map(
+            (entry, i) =>
+              `${i + 1}. ${entry.status} (${new Date(
+                entry.timestamp
+              ).toLocaleString()}) by ${entry.userType} - ${
+                entry.notes || "No notes"
+              }`
+          )
+          .join("\n")}
+      `;
+
+      // Alert with diagnostic info
+      alert(formattedDiagnostic);
+
+      console.log("Diagnostic information:", diagnosticInfo);
+    } catch (error) {
+      console.error("Error diagnosing appointment:", error);
+      toast.error(`Error diagnosing appointment: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const eventStyleGetter = (event) => {
     let backgroundColor;
     let opacity = 1;
+    let borderLeft = "none";
 
     // Color based on appointment type
-    if (event.type === "video") {
+    if (event.type === "telemedicine" || event.type === "video") {
       backgroundColor = "#9C27B0"; // Purple for video calls
     } else {
       backgroundColor = "#4A90E2"; // Blue for in-person
     }
 
     // Adjust colors based on status
-    if (event.status === "cancelled") {
-      opacity = 0.5;
-    } else if (event.status === "completed") {
-      opacity = 0.7;
-    } else if (event.status === "pending") {
-      backgroundColor = "#F9A825"; // Yellow/orange for pending
-    } else if (event.status === "confirmed") {
-      // Keep default color but add a border
-      return {
-        style: {
-          backgroundColor,
-          opacity,
-          borderLeft: "4px solid #43A047",
-          borderRadius: "4px",
-        },
-      };
+    switch (event.status) {
+      case "pending":
+        backgroundColor = "#F9A825"; // Yellow/orange for pending
+        break;
+      case "confirmed":
+        // Keep default color based on type but add green border
+        borderLeft = "4px solid #43A047"; // Green border
+        break;
+      case "completed":
+        opacity = 0.7;
+        break;
+      case "cancelled":
+        backgroundColor = "#9E9E9E"; // Gray for cancelled
+        opacity = 0.5;
+        break;
+      case "rejected":
+        backgroundColor = "#F44336"; // Red for rejected
+        opacity = 0.5;
+        break;
+      case "no-show":
+        backgroundColor = "#795548"; // Brown for no-show
+        opacity = 0.5;
+        break;
     }
 
+    // Return style with calculated properties
     return {
       style: {
         backgroundColor,
         opacity,
+        borderLeft,
+        borderRadius: "4px",
       },
     };
+  };
+
+  const renderActionButtons = (appointment) => {
+    if (!appointment) return null;
+
+    const canAccept =
+      user.userType === "doctor" &&
+      appointment.status === "pending" &&
+      user._id === appointment.doctor?._id;
+
+    const canReject =
+      user.userType === "doctor" &&
+      appointment.status === "pending" &&
+      user._id === appointment.doctor?._id;
+
+    const canComplete =
+      user.userType === "doctor" &&
+      appointment.status === "confirmed" &&
+      user._id === appointment.doctor?._id;
+
+    const canCancel =
+      (appointment.status === "pending" ||
+        appointment.status === "confirmed") &&
+      (user.userType === "admin" ||
+        (user.userType === "doctor" && user._id === appointment.doctor?._id) ||
+        (user.userType === "patient" && user._id === appointment.patient?._id));
+
+    const canMarkNoShow =
+      user.userType === "doctor" &&
+      appointment.status === "confirmed" &&
+      user._id === appointment.doctor?._id;
+
+    const hasStatusActions =
+      canAccept || canReject || canComplete || canCancel || canMarkNoShow;
+
+    return (
+      <div className="action-buttons">
+        {canAccept && (
+          <button
+            className="btn btn-success btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAcceptAppointment(appointment);
+            }}
+          >
+            <i className="fas fa-check"></i> Accept
+          </button>
+        )}
+
+        {canReject && (
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleRejectAppointmentClick(appointment);
+            }}
+          >
+            <i className="fas fa-times"></i> Reject
+          </button>
+        )}
+
+        {canComplete && (
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCompleteAppointment(appointment);
+            }}
+          >
+            <i className="fas fa-check-circle"></i> Complete
+          </button>
+        )}
+
+        {canCancel && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCancelAppointmentClick(appointment);
+            }}
+          >
+            <i className="fas fa-ban"></i> Cancel
+          </button>
+        )}
+
+        {canMarkNoShow && (
+          <button
+            className="btn btn-warning btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNoShowAppointment(appointment);
+            }}
+          >
+            <i className="fas fa-user-slash"></i> No-Show
+          </button>
+        )}
+
+        {/* Add Diagnostic button for admin users */}
+        {user.userType === "admin" && (
+          <button
+            className="btn btn-info btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDiagnoseAppointment(appointment._id);
+            }}
+            title="Diagnose appointment issues"
+          >
+            <i className="fas fa-stethoscope"></i> Diagnose
+          </button>
+        )}
+
+        {/* Show a message if no actions are available */}
+        {!hasStatusActions && user.userType !== "admin" && (
+          <span className="text-muted small">
+            No actions available for {appointment.status} status
+          </span>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -714,6 +1084,67 @@ const Appointments = () => {
           <Button variant="primary" to="/dashboard/doctors">
             <FaPlus />
             Book New Appointment
+          </Button>
+        )}
+        {(user.role === "admin" || user.userType === "admin") && (
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              try {
+                const action = window.confirm(
+                  "Would you like to delete broken appointments? \n\n" +
+                    "Click 'OK' to delete appointments with missing references.\n" +
+                    "Click 'Cancel' to only fix broken references when possible."
+                )
+                  ? "delete"
+                  : "fix";
+
+                setLoading(true);
+                const result = await api.fixAppointmentReferences(action);
+
+                // Show detailed results
+                if (result.details && result.details.length > 0) {
+                  const detailsText = result.details
+                    .map(
+                      (d) =>
+                        `ID: ${d.id}\nDate: ${
+                          d.date
+                            ? new Date(d.date).toLocaleDateString()
+                            : "Unknown"
+                        }\n` +
+                        `Time: ${d.time}\nStatus: ${
+                          d.status
+                        }\nIssues: ${d.issues.join(", ")}`
+                    )
+                    .join("\n\n");
+
+                  console.log("Fix appointment results:", detailsText);
+                }
+
+                // Create a user-friendly message
+                let message = `Fixed ${result.fixed || 0} appointment${
+                  result.fixed !== 1 ? "s" : ""
+                }`;
+                if (result.deleted && result.deleted > 0) {
+                  message += `, deleted ${result.deleted} appointment${
+                    result.deleted !== 1 ? "s" : ""
+                  }`;
+                }
+
+                toast.success(message);
+
+                // Refresh data
+                await fetchAppointments();
+              } catch (error) {
+                console.error("Error fixing references:", error);
+                toast.error("Failed to fix appointment references");
+              } finally {
+                setLoading(false);
+              }
+            }}
+          >
+            <FaTools />
+            Fix References
           </Button>
         )}
       </TopBar>
@@ -779,12 +1210,19 @@ const Appointments = () => {
       </FiltersContainer>
 
       <AppointmentTypeContainer>
+        <h3 style={{ width: "100%", marginBottom: "8px" }}>
+          Appointment Types
+        </h3>
         {appointmentTypes.map((type) => (
           <AppointmentType key={type.name}>
             <ColorIndicator color={type.color} />
             <span>{type.name}</span>
           </AppointmentType>
         ))}
+      </AppointmentTypeContainer>
+
+      <AppointmentTypeContainer>
+        <h3 style={{ width: "100%", marginBottom: "8px" }}>Status Colors</h3>
         <AppointmentType>
           <ColorIndicator color="#F9A825" />
           <span>Pending</span>
@@ -797,6 +1235,22 @@ const Appointments = () => {
             />
             <span>Confirmed</span>
           </div>
+        </AppointmentType>
+        <AppointmentType>
+          <ColorIndicator color="#4A90E2" style={{ opacity: 0.7 }} />
+          <span>Completed</span>
+        </AppointmentType>
+        <AppointmentType>
+          <ColorIndicator color="#9E9E9E" style={{ opacity: 0.5 }} />
+          <span>Cancelled</span>
+        </AppointmentType>
+        <AppointmentType>
+          <ColorIndicator color="#F44336" style={{ opacity: 0.5 }} />
+          <span>Rejected</span>
+        </AppointmentType>
+        <AppointmentType>
+          <ColorIndicator color="#795548" style={{ opacity: 0.5 }} />
+          <span>No-Show</span>
         </AppointmentType>
       </AppointmentTypeContainer>
 
@@ -860,13 +1314,22 @@ const Appointments = () => {
               <DetailContent>
                 <DetailLabel>Doctor</DetailLabel>
                 <DetailValue>
-                  {selectedAppointment.doctor?.name
+                  {loading
+                    ? "Loading doctor information..."
+                    : selectedAppointment.doctor &&
+                      selectedAppointment.doctor.name
                     ? `Dr. ${selectedAppointment.doctor.name}`
-                    : "Not assigned"}
+                    : selectedAppointment.doctor?._id
+                    ? "Doctor information unavailable (reference exists)"
+                    : "No doctor assigned"}
                 </DetailValue>
-                <DetailValue style={{ fontSize: "0.9rem", color: "#666" }}>
-                  {selectedAppointment.doctor?.specialization || ""}
-                </DetailValue>
+                {(selectedAppointment.status === "confirmed" ||
+                  selectedAppointment.status === "completed") &&
+                  selectedAppointment.doctor?.specialty && (
+                    <DetailValue style={{ fontSize: "0.9rem", color: "#666" }}>
+                      {selectedAppointment.doctor.specialty}
+                    </DetailValue>
+                  )}
               </DetailContent>
             </AppointmentDetail>
 
@@ -877,8 +1340,22 @@ const Appointments = () => {
               <DetailContent>
                 <DetailLabel>Patient</DetailLabel>
                 <DetailValue>
-                  {selectedAppointment.patient?.name || "Unknown"}
+                  {loading
+                    ? "Loading patient information..."
+                    : selectedAppointment.patient &&
+                      selectedAppointment.patient.name
+                    ? selectedAppointment.patient.name
+                    : selectedAppointment.patient?._id
+                    ? "Patient information unavailable (reference exists)"
+                    : "Patient not assigned"}
                 </DetailValue>
+                {(selectedAppointment.status === "confirmed" ||
+                  selectedAppointment.status === "completed") &&
+                  selectedAppointment.patient?.email && (
+                    <DetailValue style={{ fontSize: "0.9rem", color: "#666" }}>
+                      {selectedAppointment.patient.email}
+                    </DetailValue>
+                  )}
               </DetailContent>
             </AppointmentDetail>
 
@@ -964,62 +1441,7 @@ const Appointments = () => {
             </AppointmentDetail>
 
             <ActionButtonsContainer>
-              {selectedAppointment.status === "pending" && (
-                <>
-                  <ActionButton
-                    variant="primary"
-                    onClick={handleConfirmAppointment}
-                    disabled={user.role !== "doctor" && user.role !== "admin"}
-                  >
-                    <FaCheckCircle />
-                    Confirm
-                  </ActionButton>
-                  <ActionButton
-                    variant="danger"
-                    onClick={handleCancelAppointment}
-                    disabled={
-                      user.role !== "doctor" &&
-                      user.role !== "admin" &&
-                      user.role !== "patient"
-                    }
-                  >
-                    <FaTimesCircle />
-                    Cancel
-                  </ActionButton>
-                </>
-              )}
-
-              {selectedAppointment.status === "confirmed" && (
-                <>
-                  <ActionButton
-                    variant="primary"
-                    onClick={handleCompleteAppointment}
-                    disabled={user.role !== "doctor" && user.role !== "admin"}
-                  >
-                    <FaCheckCircle />
-                    Mark as Completed
-                  </ActionButton>
-                  <ActionButton
-                    variant="danger"
-                    onClick={handleCancelAppointment}
-                    disabled={
-                      user.role !== "doctor" &&
-                      user.role !== "admin" &&
-                      user.role !== "patient"
-                    }
-                  >
-                    <FaTimesCircle />
-                    Cancel
-                  </ActionButton>
-                </>
-              )}
-
-              {(selectedAppointment.status === "cancelled" ||
-                selectedAppointment.status === "completed") && (
-                <ActionButton variant="secondary" onClick={handleCloseModal}>
-                  Close
-                </ActionButton>
-              )}
+              {renderActionButtons(selectedAppointment)}
             </ActionButtonsContainer>
           </ModalContent>
         </AppointmentDetailsModal>

@@ -13,8 +13,7 @@ import {
 } from "react-icons/fa";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
-import mockApi from "../../services/mockApi";
-
+import api from "../../services/apiService";
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
 `;
@@ -302,7 +301,8 @@ const ManageDoctors = () => {
     name: "",
     email: "",
     contactNumber: "",
-    specialization: "",
+    specialty: "",
+    licenseNumber: "",
     department: "",
     bio: "",
     education: "",
@@ -310,24 +310,34 @@ const ManageDoctors = () => {
     consultationFee: "",
     profileImage: "",
     isActive: true,
+    languages: [],
+    gender: "",
   });
 
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        // Mock data for departments
-        const mockDepartments = [
-          { _id: "1", name: "Cardiology" },
-          { _id: "2", name: "Neurology" },
-          { _id: "3", name: "Pediatrics" },
-          { _id: "4", name: "Orthopedics" },
-          { _id: "5", name: "Dermatology" },
-          { _id: "6", name: "Radiology" },
-        ];
-        setDepartments(mockDepartments);
+        // Get real departments data from API
+        const departmentsResponse = await api.getDepartments();
+
+        if (Array.isArray(departmentsResponse)) {
+          setDepartments(departmentsResponse);
+        } else if (
+          departmentsResponse &&
+          Array.isArray(departmentsResponse.data)
+        ) {
+          setDepartments(departmentsResponse.data);
+        } else {
+          console.warn(
+            "Unexpected departments response format:",
+            departmentsResponse
+          );
+          setDepartments([]);
+        }
       } catch (error) {
         console.error("Error fetching departments:", error);
         setError("Failed to load departments. Please try again later.");
+        setDepartments([]);
       }
     };
 
@@ -338,11 +348,29 @@ const ManageDoctors = () => {
     const fetchDoctors = async () => {
       try {
         setLoading(true);
-        // Use mockApi to get doctors
-        const response = await mockApi.getDoctors();
-        if (response && Array.isArray(response)) {
+        // Use api to get doctors
+        const response = await api.getDoctors();
+
+        // Check for various response formats
+        if (Array.isArray(response)) {
+          console.log("Doctors data structure:", response.slice(0, 2));
           setDoctors(response);
           setFilteredDoctors(response);
+        } else if (response && response.data && Array.isArray(response.data)) {
+          // Handle {message, data} format
+          console.log("Doctors data structure:", response.data.slice(0, 2));
+          setDoctors(response.data);
+          setFilteredDoctors(response.data);
+        } else if (
+          response &&
+          response.message === "No doctors found" &&
+          response.data &&
+          Array.isArray(response.data)
+        ) {
+          // Empty data with message
+          setDoctors(response.data);
+          setFilteredDoctors(response.data);
+          console.log("No doctors found in the database");
         } else {
           console.error("Invalid response format:", response);
           setDoctors([]);
@@ -368,6 +396,19 @@ const ManageDoctors = () => {
     }
   }, [searchTerm, selectedDepartment, selectedStatus, doctors]);
 
+  // Helper function to extract department ID from various formats
+  const extractDepartmentId = (departmentValue) => {
+    if (!departmentValue) return null;
+
+    // If it's an object with an _id property
+    if (typeof departmentValue === "object" && departmentValue._id) {
+      return departmentValue._id;
+    }
+
+    // Otherwise return as is (assuming it's already an ID string)
+    return departmentValue;
+  };
+
   const applyFilters = (doctorsToFilter) => {
     const sourceArray = doctorsToFilter || doctors;
 
@@ -382,8 +423,8 @@ const ManageDoctors = () => {
       filtered = filtered.filter(
         (doctor) =>
           doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (doctor.specialization &&
-            doctor.specialization
+          (doctor.specialty &&
+            doctor.specialty
               .toLowerCase()
               .includes(searchTerm.toLowerCase())) ||
           (doctor.email &&
@@ -392,8 +433,20 @@ const ManageDoctors = () => {
     }
 
     if (selectedDepartment) {
-      filtered = filtered.filter(
-        (doctor) => doctor.department === selectedDepartment
+      console.log("Filtering by department:", selectedDepartment);
+
+      filtered = filtered.filter((doctor) => {
+        // Extract the department ID using the helper function
+        const doctorDeptId = extractDepartmentId(doctor.department);
+
+        // Log to help debug
+        console.log(`Doctor: ${doctor.name}, Department ID: ${doctorDeptId}`);
+
+        return doctorDeptId === selectedDepartment;
+      });
+
+      console.log(
+        `Found ${filtered.length} doctors after department filtering`
       );
     }
 
@@ -412,39 +465,57 @@ const ManageDoctors = () => {
 
   const openAddModal = () => {
     setModalMode("add");
+
+    // Generate random profile image
+    const gender = Math.random() > 0.5 ? "male" : "female";
+    const index = Math.floor(Math.random() * 100);
+    const profileImage = `https://randomuser.me/api/portraits/${
+      gender === "male" ? "men" : "women"
+    }/${index}.jpg`;
+
     setFormData({
       name: "",
       email: "",
       contactNumber: "",
-      specialization: "",
+      specialty: "",
+      licenseNumber: "",
       department: "",
       bio: "",
       education: "",
       experience: "",
       consultationFee: "",
-      profileImage: "",
+      profileImage: profileImage, // Set the random profile image
       isActive: true,
+      languages: [],
+      gender: gender, // Also store the gender
     });
     setIsModalOpen(true);
+    setError(null);
   };
 
   const openEditModal = (doctor) => {
     setModalMode("edit");
-    setCurrentDoctor(doctor);
-    setFormData({
-      name: doctor.name,
-      email: doctor.email,
-      contactNumber: doctor.contactNumber || "",
-      specialization: doctor.specialization || "",
-      department: doctor.department?._id || "",
+    // Map the doctor data to our form structure, ensuring all fields are properly mapped
+    const doctorData = {
+      name: doctor.name || "",
+      email: doctor.email || "",
+      contactNumber: doctor.phone || doctor.contactNumber || "",
+      specialty: doctor.specialty || "",
+      licenseNumber: doctor.licenseNumber || "",
+      department: doctor.department?._id || doctor.department || "",
       bio: doctor.bio || "",
       education: doctor.education || "",
       experience: doctor.experience || "",
       consultationFee: doctor.consultationFee || "",
       profileImage: doctor.profileImage || "",
-      isActive: doctor.isActive,
-    });
+      isActive: doctor.isActive !== undefined ? doctor.isActive : true,
+      languages: doctor.languages || [],
+      gender: doctor.gender || "",
+    };
+    setFormData(doctorData);
+    setCurrentDoctor(doctor);
     setIsModalOpen(true);
+    setError(null);
   };
 
   const closeModal = () => {
@@ -465,38 +536,139 @@ const ManageDoctors = () => {
 
     try {
       if (modalMode === "add") {
+        // Validate required fields
+        if (!formData.specialty) {
+          setError("Specialty field is required");
+          return;
+        }
+
+        if (!formData.licenseNumber) {
+          setError("License number is required");
+          return;
+        }
+
+        if (!formData.department) {
+          setError("Department is required");
+          return;
+        }
+
+        if (!formData.contactNumber) {
+          setError("Contact number is required");
+          return;
+        }
+
+        if (!formData.gender) {
+          setError("Gender is required");
+          return;
+        }
+
         // For new doctors, we need to set a password
         const doctorData = {
           ...formData,
           password: "tempPassword123", // This should be changed by the doctor on first login
           role: "doctor",
+          // Ensure fields are properly formatted
+          specialty: formData.specialty,
+          department: formData.department, // Already correctly selected from dropdown
+          licenseNumber: formData.licenseNumber,
+          consultationFee: formData.consultationFee
+            ? Number(formData.consultationFee)
+            : 0,
+          experience: formData.experience ? Number(formData.experience) : 0,
+          // Map contactNumber to phone as required by the server model
+          phone: formData.contactNumber,
+          // Set gender correctly
+          gender: formData.gender,
         };
 
-        // Use mockApi to add a doctor
-        const response = await mockApi.addDoctor(doctorData);
-        if (response) {
+        try {
+          // Use api to add a doctor
+          const response = await api.createDoctor(doctorData);
+
           // Refresh the doctors list
-          const doctorsResponse = await mockApi.getDoctors();
-          if (Array.isArray(doctorsResponse)) {
-            setDoctors(doctorsResponse);
-            setFilteredDoctors(doctorsResponse);
+          try {
+            const doctorsResponse = await api.getDoctors();
+            if (Array.isArray(doctorsResponse)) {
+              setDoctors(doctorsResponse);
+              setFilteredDoctors(doctorsResponse);
+            } else if (
+              doctorsResponse &&
+              doctorsResponse.data &&
+              Array.isArray(doctorsResponse.data)
+            ) {
+              setDoctors(doctorsResponse.data);
+              setFilteredDoctors(doctorsResponse.data);
+            }
+            closeModal();
+          } catch (refreshError) {
+            console.error("Error refreshing doctors list:", refreshError);
+            // Close modal anyway but show error
+            closeModal();
+            setError("Doctor added but failed to refresh the list.");
           }
-          closeModal();
+        } catch (addError) {
+          console.error("Error adding doctor:", addError);
+          let errorMsg =
+            "Failed to add doctor. Please check the form and try again.";
+
+          // Extract more specific error message if available
+          if (addError.message) {
+            errorMsg = addError.message;
+          } else if (addError.error) {
+            errorMsg = addError.error;
+          }
+
+          setError(errorMsg);
         }
       } else if (currentDoctor?._id) {
-        // Use mockApi to update a doctor
-        const response = await mockApi.updateDoctor(
-          currentDoctor._id,
-          formData
-        );
-        if (response) {
+        try {
+          // Prepare update data with proper field mappings
+          const updateData = {
+            ...formData,
+            // Map contactNumber to phone as required by the server model
+            phone: formData.contactNumber,
+            // Ensure numeric fields are properly formatted
+            consultationFee: formData.consultationFee
+              ? Number(formData.consultationFee)
+              : 0,
+            experience: formData.experience ? Number(formData.experience) : 0,
+            // Ensure department is properly passed
+            department: formData.department,
+            // Ensure proper gender value
+            gender: formData.gender || undefined,
+          };
+
+          // Use api to update a doctor
+          const response = await api.updateDoctor(
+            currentDoctor._id,
+            updateData
+          );
+
           // Refresh the doctors list
-          const doctorsResponse = await mockApi.getDoctors();
-          if (Array.isArray(doctorsResponse)) {
-            setDoctors(doctorsResponse);
-            setFilteredDoctors(doctorsResponse);
+          try {
+            const doctorsResponse = await api.getDoctors();
+            if (Array.isArray(doctorsResponse)) {
+              setDoctors(doctorsResponse);
+              setFilteredDoctors(doctorsResponse);
+            } else if (
+              doctorsResponse &&
+              doctorsResponse.data &&
+              Array.isArray(doctorsResponse.data)
+            ) {
+              setDoctors(doctorsResponse.data);
+              setFilteredDoctors(doctorsResponse.data);
+            }
+            closeModal();
+          } catch (refreshError) {
+            console.error("Error refreshing doctors list:", refreshError);
+            closeModal();
+            setError("Doctor updated but failed to refresh the list.");
           }
-          closeModal();
+        } catch (updateError) {
+          console.error("Error updating doctor:", updateError);
+          setError(
+            "Failed to update doctor. Please check the form and try again."
+          );
         }
       }
     } catch (error) {
@@ -512,8 +684,8 @@ const ManageDoctors = () => {
     }
 
     try {
-      // Use mockApi to update a doctor's status
-      await mockApi.updateDoctor(doctor._id, {
+      // Use api to update a doctor's status
+      await api.updateDoctor(doctor._id, {
         isActive: !doctor.isActive,
       });
 
@@ -543,8 +715,8 @@ const ManageDoctors = () => {
     }
 
     try {
-      // Use mockApi to delete a doctor
-      await mockApi.deleteDoctor(doctorId);
+      // Use api to delete a doctor
+      await api.deleteDoctor(doctorId);
 
       // Remove the doctor from the local state
       const updatedDoctors = doctors.filter((d) => d._id !== doctorId);
@@ -555,18 +727,39 @@ const ManageDoctors = () => {
       setFilteredDoctors(filteredResults);
     } catch (error) {
       console.error("Error deleting doctor:", error);
-      setError("Failed to delete doctor. Please try again.");
+      let errorMessage = "Failed to delete doctor. Please try again.";
+
+      // Check for specific error responses
+      if (error.message) {
+        errorMessage = `Failed to delete doctor: ${error.message}`;
+      }
+
+      // Display more specific information for common errors
+      if (error.status === 404) {
+        errorMessage = "The doctor you're trying to delete could not be found.";
+      } else if (error.status === 403 || error.status === 401) {
+        errorMessage = "You don't have permission to delete this doctor.";
+      }
+
+      setError(errorMessage);
     }
   };
 
   // Helper function to get department name by ID
   const getDepartmentName = (departmentId) => {
     if (!departmentId) return "Not Assigned";
+
+    // If departmentId is actually a department object with a name, return that name directly
+    if (typeof departmentId === "object" && departmentId.name) {
+      return departmentId.name;
+    }
+
     if (!Array.isArray(departments)) return "Unknown";
 
-    const department = departments.find(
-      (dept) => dept && dept._id === departmentId
-    );
+    // Extract the ID using our helper function
+    const deptId = extractDepartmentId(departmentId);
+
+    const department = departments.find((dept) => dept && dept._id === deptId);
     return department ? department.name : "Unknown";
   };
 
@@ -619,6 +812,37 @@ const ManageDoctors = () => {
         </FilterSelect>
       </FiltersContainer>
 
+      {selectedDepartment && (
+        <div
+          style={{
+            padding: "8px 16px",
+            marginBottom: "16px",
+            backgroundColor: "#e3f2fd",
+            borderRadius: "4px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>
+            Filtering by department:{" "}
+            <strong>{getDepartmentName(selectedDepartment)}</strong>
+          </span>
+          <button
+            onClick={() => setSelectedDepartment("")}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#1976d2",
+              fontWeight: "bold",
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {error && <ErrorMessage>{error}</ErrorMessage>}
 
       {!filteredDoctors || filteredDoctors.length === 0 ? (
@@ -631,9 +855,9 @@ const ManageDoctors = () => {
                 <DoctorAvatar image={doctor.profileImage} />
                 <DoctorInfo>
                   <DoctorName>Dr. {doctor.name}</DoctorName>
-                  {doctor.specialization && (
+                  {doctor.specialty && (
                     <DoctorSpecialization>
-                      {doctor.specialization}
+                      {doctor.specialty}
                     </DoctorSpecialization>
                   )}
                   {doctor.department && (
@@ -652,9 +876,19 @@ const ManageDoctors = () => {
                   <DetailItem>
                     <span>Email:</span> {doctor.email}
                   </DetailItem>
-                  {doctor.contactNumber && (
+                  {doctor.phone && (
+                    <DetailItem>
+                      <span>Contact:</span> {doctor.phone}
+                    </DetailItem>
+                  )}
+                  {!doctor.phone && doctor.contactNumber && (
                     <DetailItem>
                       <span>Contact:</span> {doctor.contactNumber}
+                    </DetailItem>
+                  )}
+                  {doctor.licenseNumber && (
+                    <DetailItem>
+                      <span>License:</span> {doctor.licenseNumber}
                     </DetailItem>
                   )}
                   {doctor.consultationFee && (
@@ -754,6 +988,7 @@ const ManageDoctors = () => {
                   name="contactNumber"
                   value={formData.contactNumber}
                   onChange={handleInputChange}
+                  required
                 />
               </FormGroup>
 
@@ -764,6 +999,7 @@ const ManageDoctors = () => {
                   name="department"
                   value={formData.department}
                   onChange={handleInputChange}
+                  required
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (
@@ -775,13 +1011,26 @@ const ManageDoctors = () => {
               </FormGroup>
 
               <FormGroup>
-                <Label htmlFor="specialization">Specialization</Label>
+                <Label htmlFor="specialty">Specialty</Label>
                 <Input
                   type="text"
-                  id="specialization"
-                  name="specialization"
-                  value={formData.specialization}
+                  id="specialty"
+                  name="specialty"
+                  value={formData.specialty}
                   onChange={handleInputChange}
+                  required
+                />
+              </FormGroup>
+
+              <FormGroup>
+                <Label htmlFor="licenseNumber">License Number</Label>
+                <Input
+                  type="text"
+                  id="licenseNumber"
+                  name="licenseNumber"
+                  value={formData.licenseNumber}
+                  onChange={handleInputChange}
+                  required
                 />
               </FormGroup>
 
@@ -793,6 +1042,7 @@ const ManageDoctors = () => {
                   name="consultationFee"
                   value={formData.consultationFee}
                   onChange={handleInputChange}
+                  min="0"
                 />
               </FormGroup>
 
@@ -825,6 +1075,7 @@ const ManageDoctors = () => {
                   name="experience"
                   value={formData.experience}
                   onChange={handleInputChange}
+                  min="0"
                 />
               </FormGroup>
 

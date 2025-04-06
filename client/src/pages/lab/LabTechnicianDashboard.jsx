@@ -18,8 +18,7 @@ import {
 import Card from "../../components/ui/Card";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
-import mockApi from "../../services/mockApi";
-
+import api from "../../services/apiService";
 // Styled components
 const StatsGrid = styled.div`
   display: grid;
@@ -256,12 +255,12 @@ const LabTechnicianDashboard = () => {
         setLoading(true);
 
         // Fetch lab orders
-        const allOrders = await mockApi.getLabOrders({
+        const allOrders = await api.getLabOrders({
           technician: user._id,
         });
 
         // Fetch lab reports
-        const reports = await mockApi.getLabReports({
+        const reports = await api.getLabReports({
           technician: user._id,
         });
 

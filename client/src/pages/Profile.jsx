@@ -10,9 +10,8 @@ import {
   FaTimes,
 } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
-import api from "../services/api";
-import mockApi from "../services/mockApi";
 import Card from "../components/ui/Card";
+import api from "../services/apiService";
 
 const ProfileContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};

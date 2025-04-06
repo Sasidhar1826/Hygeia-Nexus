@@ -16,10 +16,11 @@ import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import { useAuth } from "../context/AuthContext";
-import mockApi from "../services/mockApi";
 import PageTransition from "../components/animations/PageTransition";
 import ViewLabReport from "../components/modals/ViewLabReport";
 import LabReportCard from "../components/medical/LabReportCard";
+import api from "../services/apiService";
+import { toast } from "react-hot-toast";
 
 const PageContainer = styled.div`
   display: flex;
@@ -201,86 +202,55 @@ const MedicalRecords = () => {
     const fetchRecords = async () => {
       setLoading(true);
       try {
-        // Mock records for now
-        const mockMedicalRecords = [
-          {
-            id: "MR001",
-            type: "Diagnosis",
-            date: "2023-10-05",
-            doctor: "Dr. Sarah Johnson",
-            department: "General Medicine",
-            details: {
-              diagnosis: "Common Cold",
-              symptoms: "Fever, Cough, Runny Nose",
-              notes: "Rest advised for 3 days with medication",
-            },
-            fileType: "document",
-          },
-          {
-            id: "MR002",
-            type: "Lab Report",
-            date: "2023-10-03",
-            doctor: "Dr. Michael Brown",
-            department: "Pathology",
-            details: {
-              test: "Blood Test",
-              results: "Normal blood count, slightly elevated glucose levels",
-              recommendations: "Follow-up in 3 months",
-            },
-            fileType: "pdf",
-          },
-          {
-            id: "MR003",
-            type: "X-Ray",
-            date: "2023-09-25",
-            doctor: "Dr. Emily Wilson",
-            department: "Radiology",
-            details: {
-              region: "Chest",
-              findings: "No abnormalities detected",
-              notes: "Annual check-up",
-            },
-            fileType: "image",
-          },
-        ];
+        // Fetch records from api
+        const medicalRecordsResponse = await api.getMedicalRecords();
 
         // Fetch lab reports for the current user if they are a patient
         let labReports = [];
         if (user && user.role === "patient") {
           try {
-            const labReportsResponse = await mockApi.getLabReports({
+            const labReportsResponse = await api.getLabReports({
               patient: user._id,
             });
 
-            // Transform lab reports to match medical records format
-            labReports = labReportsResponse.map((report) => ({
-              id: report._id,
-              type: "Lab Report",
-              reportType: report.reportType,
-              date: report.date,
-              doctor: report.technician?.name || "Lab Technician",
-              department: "Laboratory",
-              details: {
-                test: report.reportType,
-                results: report.results,
-                notes: report.notes || "",
-              },
-              fileType: "lab",
-              rawReport: report, // Keep original data for reference
-              hasAbnormalResults: report.hasAbnormalResults,
-            }));
-
-            console.log("Fetched lab reports:", labReports);
+            // Check if labReportsResponse is an array before calling map
+            if (Array.isArray(labReportsResponse)) {
+              labReports = labReportsResponse.map((report) => ({
+                ...report,
+                id: report._id,
+                fileType: "lab",
+                rawReport: report,
+              }));
+            } else {
+              console.error(
+                "Error: Lab reports response is not an array:",
+                labReportsResponse
+              );
+              // If there's data property that might contain the array
+              if (
+                labReportsResponse &&
+                Array.isArray(labReportsResponse.data)
+              ) {
+                labReports = labReportsResponse.data.map((report) => ({
+                  ...report,
+                  id: report._id,
+                  fileType: "lab",
+                  rawReport: report,
+                }));
+              } else {
+                // Handle case where response is not as expected
+                labReports = [];
+              }
+            }
           } catch (error) {
             console.error("Error fetching lab reports:", error);
           }
         }
 
-        // Combine mock records with real lab reports
-        setRecords([...mockMedicalRecords, ...labReports]);
+        setRecords([...medicalRecordsResponse, ...labReports]);
         setLoading(false);
       } catch (error) {
-        console.error("Error fetching medical records:", error);
+        console.error("Error fetching records:", error);
         setLoading(false);
       }
     };
@@ -347,6 +317,17 @@ const MedicalRecords = () => {
     } else if (report.fileType === "lab" && report.rawReport) {
       setSelectedLabReport(report.rawReport);
       setShowLabReportModal(true);
+    }
+  };
+
+  const handleDeleteRecord = async (recordId) => {
+    try {
+      await api.deleteMedicalRecord(recordId);
+      setRecords(records.filter((record) => record.id !== recordId));
+      toast.success("Record deleted successfully");
+    } catch (error) {
+      console.error("Error deleting record:", error);
+      toast.error("Failed to delete record");
     }
   };
 

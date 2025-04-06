@@ -13,8 +13,8 @@ import {
 import PageTransition from "../../components/animations/PageTransition";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
-import mockAuthService from "../../services/mockApi";
 import { useLocation, useNavigate } from "react-router-dom";
+import api from "../../services/apiService";
 
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -312,11 +312,11 @@ const UploadLabResults = () => {
         setInitialLoading(true);
 
         // Get the list of patients for the dropdown
-        const patientsData = await mockAuthService.getPatients();
+        const patientsData = await api.getPatients();
         setPatients(patientsData);
 
         // Get lab orders for the current technician
-        const ordersData = await mockAuthService.getLabOrders({
+        const ordersData = await api.getLabOrders({
           technician: user._id,
           status: "in_progress",
         });
@@ -466,14 +466,14 @@ const UploadLabResults = () => {
       console.log("Uploading lab report with data:", reportData);
 
       // Call the API to upload the report
-      const uploadedReport = await mockAuthService.uploadLabReport(reportData);
+      const uploadedReport = await api.uploadLabReport(reportData);
 
       // If this is linked to an order, update the order status and link the report
       if (selectedOrder) {
         console.log(
           `Updating lab order ${selectedOrder._id} with report ID ${uploadedReport._id}`
         );
-        await mockAuthService.updateLabOrder(selectedOrder._id, {
+        await api.updateLabOrder(selectedOrder._id, {
           status: "completed",
           reportId: uploadedReport._id,
           completedDate: new Date().toISOString(),

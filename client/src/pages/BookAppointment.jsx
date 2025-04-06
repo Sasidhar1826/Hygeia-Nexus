@@ -10,11 +10,19 @@ import {
   FaHospital,
   FaMoneyBillWave,
   FaVideo,
+  FaClinicMedical,
+  FaLaptopMedical,
+  FaExclamationCircle,
+  FaCheckCircle,
+  FaArrowRight,
+  FaPhone,
+  FaMapMarkerAlt,
 } from "react-icons/fa";
-import api from "../services/api";
-import mockApi from "../services/mockApi";
 import { useAuth } from "../context/AuthContext";
 import Card from "../components/ui/Card";
+import api from "../services/apiService";
+import Input from "../components/ui/Input";
+import Button from "../components/ui/Button";
 
 const BookingContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -235,7 +243,7 @@ const Label = styled.label`
   color: ${(props) => props.theme.colors.text.secondary};
 `;
 
-const Input = styled.input`
+const InputField = styled.input`
   width: 100%;
   padding: ${(props) => props.theme.spacing(1)};
   border: 1px solid ${(props) => props.theme.colors.border};
@@ -427,8 +435,7 @@ const BookAppointment = () => {
     const fetchDoctor = async () => {
       try {
         setLoading(true);
-        // Use mockApi instead of direct API call
-        const response = await mockApi.getDoctorById(doctorId);
+        const response = await api.getDoctorById(doctorId);
         setDoctor(response);
         setLoading(false);
       } catch (err) {
@@ -495,16 +502,19 @@ const BookAppointment = () => {
         .toISOString()
         .split("T")[0];
 
-      console.log("Creating appointment with times:", {
+      console.log("Creating appointment with data:", {
         date: appointmentDate,
         startTime: formattedStartTime,
         endTime: formattedEndTime,
+        patient: user._id,
+        userRole: user.role || user.userType,
+        doctor: doctorId,
       });
 
       const appointmentData = {
-        patient: user._id,
+        patient: user._id, // This is the ID of the authenticated user, which is the patient
         doctor: doctorId,
-        department: doctor.department._id,
+        department: doctor.department?._id,
         appointmentDate,
         startTime: formattedStartTime,
         endTime: formattedEndTime,
@@ -514,8 +524,7 @@ const BookAppointment = () => {
         status: "pending",
       };
 
-      // Use mockApi instead of direct API call
-      const response = await mockApi.createAppointment(appointmentData);
+      const response = await api.createAppointment(appointmentData);
       console.log("Appointment created:", response);
 
       setSuccess("Appointment booked successfully!");
@@ -728,12 +737,13 @@ const BookAppointment = () => {
               </SectionTitle>
               <FormGroup>
                 <Label htmlFor="reason">Reason for Visit *</Label>
-                <Input
+                <InputField
                   id="reason"
+                  name="reason"
                   type="text"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="E.g., Annual checkup, Consultation, Follow-up"
+                  placeholder="Brief reason for appointment"
                   required
                 />
               </FormGroup>
@@ -741,7 +751,8 @@ const BookAppointment = () => {
               <FormGroup>
                 <Label htmlFor="notes">Additional Notes</Label>
                 <TextArea
-                  id="notes"
+                  id="additionalNotes"
+                  name="additionalNotes"
                   value={additionalNotes}
                   onChange={(e) => setAdditionalNotes(e.target.value)}
                   placeholder="Any additional information you'd like the doctor to know"
@@ -751,11 +762,12 @@ const BookAppointment = () => {
               <CheckboxGroup>
                 <Checkbox
                   type="checkbox"
-                  id="terms"
+                  id="agreeToTerms"
+                  name="agreeToTerms"
                   checked={agreeToTerms}
                   onChange={(e) => setAgreeToTerms(e.target.checked)}
                 />
-                <CheckboxLabel htmlFor="terms">
+                <CheckboxLabel htmlFor="agreeToTerms">
                   I agree to the terms and conditions for booking an appointment
                 </CheckboxLabel>
               </CheckboxGroup>

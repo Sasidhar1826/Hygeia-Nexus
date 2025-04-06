@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
-import api from "../services/api";
-import mockApi from "../services/mockApi";
+import api from "../services/apiService";
 
 const AuthContext = createContext();
 
@@ -10,8 +9,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // For development, we're always using mock API
-  const [useMockApi, setUseMockApi] = useState(true);
+  // useMockApi is now determined in apiService
+  const [useMockApi, setUseMockApi] = useState(
+    import.meta.env.VITE_USE_MOCK_API === "true"
+  );
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -21,8 +22,41 @@ export const AuthProvider = ({ children }) => {
         const token = localStorage.getItem("token");
 
         if (storedUser && token) {
-          // Using mock API for development, just set the user without validation
-          setUser(JSON.parse(storedUser));
+          try {
+            // Validate token with the backend
+            const currentUser = await api.getCurrentUser();
+
+            // Ensure role and userType are consistent
+            if (currentUser && currentUser.userType && !currentUser.role) {
+              currentUser.role = currentUser.userType;
+            } else if (
+              currentUser &&
+              currentUser.role &&
+              !currentUser.userType
+            ) {
+              currentUser.userType = currentUser.role;
+            }
+
+            console.log("Current user from API:", {
+              ...currentUser,
+              password: currentUser.password ? "REDACTED" : undefined,
+            });
+
+            setUser(currentUser);
+          } catch (err) {
+            console.error("Token validation failed:", err);
+            // If token validation fails, use stored user as fallback
+            const parsedUser = JSON.parse(storedUser);
+
+            // Ensure role and userType consistency in stored user
+            if (parsedUser && parsedUser.userType && !parsedUser.role) {
+              parsedUser.role = parsedUser.userType;
+            } else if (parsedUser && parsedUser.role && !parsedUser.userType) {
+              parsedUser.userType = parsedUser.role;
+            }
+
+            setUser(parsedUser);
+          }
         }
       } catch (err) {
         console.error("Auth initialization error:", err);
@@ -31,79 +65,64 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    // Debug: check if all required API methods exist
-    console.log("Checking mock API methods:");
-    console.log(
-      "- updateUser exists:",
-      typeof mockApi.updateUser === "function"
-    );
-    console.log(
-      "- updatePatient exists:",
-      typeof mockApi.updatePatient === "function"
-    );
-    console.log(
-      "- updateDoctor exists:",
-      typeof mockApi.updateDoctor === "function"
-    );
-    console.log(
-      "- updateLabTechnician exists:",
-      typeof mockApi.updateLabTechnician === "function"
-    );
-
     initializeAuth();
   }, []);
-
-  // Helper function to find a mock user by email
-  const findMockUserByEmail = (email) => {
-    // This function would search the mock users data
-    // In a real implementation, you would import the mockUsers array from mockApi.js
-    // For now, we'll just create sample mapping for demo
-    const emailToIdMap = {
-      "admin@example.com": "1",
-      "doctor@example.com": "2",
-      "patient@example.com": "3",
-      "lab@example.com": "4",
-      "emily@example.com": "5",
-      "david@example.com": "6",
-      "jessica@example.com": "7",
-    };
-
-    return emailToIdMap[email];
-  };
 
   const login = async (email, password, role = "") => {
     try {
       setError(null);
+      console.log("AuthContext login called with role:", role);
 
-      // Always use mock API for development
-      console.log("Attempting login with:", { email, role });
-      const response = await mockApi.login(email, password, role);
+      // Special handling for admin login
+      if (role === "admin") {
+        console.log("Attempting admin login with:", {
+          email,
+          passwordLength: password ? password.length : 0,
+          role,
+        });
+      }
+
+      const response = await api.login(email, password, role);
 
       if (!response || !response.token) {
         throw new Error("Invalid login response");
       }
 
-      console.log("Login successful, user data:", response.user);
+      // User data will include both user fields and token
+      const userData = {
+        ...response,
+        role: response.userType || response.role, // Ensure role is set from userType
+      };
 
-      // Find corresponding mock user ID if possible
-      const mockUserId = findMockUserByEmail(email);
-      if (mockUserId) {
-        console.log(
-          `Found matching mock user ID: ${mockUserId} for email: ${email}`
-        );
-        // Update the ID to match mock data for easier integration
-        response.user._id = mockUserId;
+      // Ensure both role and userType are present for compatibility
+      if (!userData.userType && userData.role) {
+        userData.userType = userData.role;
       }
+
+      console.log("Login successful, normalized user data:", {
+        ...userData,
+        token: userData.token ? "TOKEN_EXISTS" : "NO_TOKEN",
+      });
 
       // Store token and user in localStorage
       localStorage.setItem("token", response.token);
-      localStorage.setItem("user", JSON.stringify(response.user));
+      localStorage.setItem("user", JSON.stringify(userData));
 
-      setUser(response.user);
-      return response.user;
+      setUser(userData);
+      return userData;
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.response?.data?.message || "Login failed");
+
+      // Enhanced error logging for admin login
+      if (role === "admin") {
+        console.error("Admin login failure details:", {
+          message: err.message || "Unknown error",
+          status: err.response?.status,
+          serverMessage: err.response?.data?.message,
+        });
+      }
+
+      setError(err.response?.data?.message || err.message || "Login failed");
       throw err;
     }
   };
@@ -111,24 +130,68 @@ export const AuthProvider = ({ children }) => {
   const signup = async (userData) => {
     try {
       setError(null);
+      console.log("SignUp attempt with data:", {
+        ...userData,
+        password: "REDACTED",
+      });
 
-      // Always use mock API for development
-      const response = await mockApi.signup(userData);
+      // Make sure we have all required fields for a user
+      if (!userData.email || !userData.password) {
+        const errorMsg = "Email and password are required";
+        setError(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // Ensure that if firstName/lastName are provided, we handle them properly
+      // This is for compatibility with the backend expecting 'name'
+      if ((userData.firstName || userData.lastName) && !userData.name) {
+        userData.name = `${userData.firstName || ""} ${
+          userData.lastName || ""
+        }`.trim();
+      }
+
+      // If role exists but userType doesn't, add userType
+      if (userData.role && !userData.userType) {
+        userData.userType = userData.role;
+      }
+
+      // If userType exists but role doesn't, add role
+      if (userData.userType && !userData.role) {
+        userData.role = userData.userType;
+      }
+
+      const response = await api.register(userData);
+      console.log("Signup successful:", response);
+
+      // Add role field for backward compatibility if needed
+      const userWithRole = {
+        ...response,
+        role: response.userType || response.role,
+      };
+
+      // Ensure both fields exist
+      if (!userWithRole.userType) userWithRole.userType = userWithRole.role;
+      if (!userWithRole.role) userWithRole.role = userWithRole.userType;
 
       // Store token and user in localStorage
       localStorage.setItem("token", response.token);
-      localStorage.setItem("user", JSON.stringify(response.user));
+      localStorage.setItem("user", JSON.stringify(userWithRole));
 
-      setUser(response.user);
-      return response.user;
+      setUser(userWithRole);
+      return userWithRole;
     } catch (err) {
-      setError(err.response?.data?.message || "Signup failed");
+      console.error("Signup error:", err);
+      const errorMessage =
+        err.response?.data?.message || err.message || "Signup failed";
+      setError(errorMessage);
       throw err;
     }
   };
 
   const logout = () => {
-    mockApi.logout();
+    if (api.logout) {
+      api.logout();
+    }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setUser(null);
@@ -137,39 +200,30 @@ export const AuthProvider = ({ children }) => {
   const updateUserProfile = async (userData) => {
     try {
       setError(null);
-      let response;
 
-      // Use appropriate mock API based on user role if using mock API
-      if (useMockApi) {
-        try {
-          console.log("Updating profile for user:", user);
+      const updatedUser = await api.updateUserProfile(userData);
 
-          // Instead of using the mock API update functions directly, handle the update manually
-          // This is needed because the user IDs in localStorage may not match mock data IDs
-          const updatedUserData = { ...user, ...userData };
-          console.log("Updated user data:", updatedUserData);
+      // Preserve role/userType information
+      const updatedUserWithRole = {
+        ...updatedUser,
+        role: updatedUser.userType || user?.userType || user?.role,
+      };
 
-          // Update localStorage regardless of mock API status
-          localStorage.setItem("user", JSON.stringify(updatedUserData));
-
-          // Set response format to match API structure
-          response = { data: updatedUserData };
-          console.log("Profile updated successfully");
-        } catch (error) {
-          console.error("Error in profile update:", error);
-          throw error;
-        }
-      } else {
-        // Use real API if not using mock
-        response = await api.put(`/users/${user._id}`, userData);
+      // Ensure both role and userType are present
+      if (!updatedUserWithRole.userType) {
+        updatedUserWithRole.userType = updatedUserWithRole.role;
       }
 
-      // Update stored user data (already done in mock path, but needed for real API)
-      const updatedUser = response.data;
-      setUser(updatedUser);
-      return updatedUser;
+      // Update localStorage
+      localStorage.setItem("user", JSON.stringify(updatedUserWithRole));
+
+      // Update stored user data
+      setUser(updatedUserWithRole);
+      return updatedUserWithRole;
     } catch (err) {
-      setError(err.response?.data?.message || "Profile update failed");
+      setError(
+        err.response?.data?.message || err.message || "Profile update failed"
+      );
       throw err;
     }
   };
@@ -177,10 +231,21 @@ export const AuthProvider = ({ children }) => {
   // Check if user has a specific role
   const hasRole = (role) => {
     if (!user) return false;
+
+    // Check userType first, then fall back to role for backward compatibility
+    const userRole = user.userType || user.role;
+
+    console.log("Role check:", {
+      checking: role,
+      userRole,
+      userType: user.userType,
+      roleField: user.role,
+    });
+
     if (Array.isArray(role)) {
-      return role.includes(user.role);
+      return role.includes(userRole);
     }
-    return user.role === role;
+    return userRole === role;
   };
 
   // Check if user is an admin

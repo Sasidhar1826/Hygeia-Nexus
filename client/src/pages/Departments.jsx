@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import styled from "styled-components";
 import { motion } from "framer-motion";
 import { FaHospital, FaSearch } from "react-icons/fa";
-import api from "../services/api";
 import Card from "../components/ui/Card";
+import api from "../services/apiService";
 
 const DepartmentsContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};

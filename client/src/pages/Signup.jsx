@@ -219,6 +219,11 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [adminKey, setAdminKey] = useState("");
   const [needsAdminKey, setNeedsAdminKey] = useState(false);
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [specialization, setSpecialization] = useState("");
+  const [showAdditionalFields, setShowAdditionalFields] = useState(true);
 
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -226,6 +231,8 @@ const Signup = () => {
   useEffect(() => {
     // Check if admin key is needed based on role
     setNeedsAdminKey(role === "admin");
+    // Show additional fields based on the role
+    setShowAdditionalFields(role !== "receptionist" && role !== "nurse");
   }, [role]);
 
   const handleSubmit = async (e) => {
@@ -252,6 +259,27 @@ const Signup = () => {
       return;
     }
 
+    // Role-specific validations
+    if (role === "doctor" && (!specialty || !licenseNumber)) {
+      setError("Doctors must provide specialty and license number");
+      setIsLoading(false);
+      return;
+    }
+
+    if (role === "admin" && !staffId) {
+      setError("Administrators must provide a staff ID");
+      setIsLoading(false);
+      return;
+    }
+
+    if (role === "labtechnician" && (!specialization || !licenseNumber)) {
+      setError(
+        "Lab technicians must provide specialization and license number"
+      );
+      setIsLoading(false);
+      return;
+    }
+
     // Validate admin key if trying to register as admin
     if (role === "admin" && adminKey !== "admin123") {
       // This is just a placeholder, in a real app this would be verified on the server
@@ -261,11 +289,34 @@ const Signup = () => {
     }
 
     try {
-      await signup({ name, email, password, role });
+      console.log("Submitting staff signup data:", { name, email, role });
+
+      const userData = {
+        name,
+        email,
+        password,
+        role, // Backend will use this as userType
+      };
+
+      // Add role-specific fields
+      if (role === "doctor") {
+        userData.specialty = specialty;
+        userData.licenseNumber = licenseNumber;
+      } else if (role === "admin") {
+        userData.staffId = staffId;
+      } else if (role === "labtechnician") {
+        userData.specialization = specialization;
+        userData.licenseNumber = licenseNumber;
+      }
+
+      await signup(userData);
       navigate("/dashboard");
     } catch (err) {
+      console.error("Staff signup error:", err);
       setError(
-        err.response?.data?.message || "Registration failed. Please try again."
+        err.response?.data?.message ||
+          err.message ||
+          "Registration failed. Please try again."
       );
     } finally {
       setIsLoading(false);
@@ -314,6 +365,8 @@ const Signup = () => {
               <FaUser />
               <input
                 type="text"
+                id="name"
+                name="name"
                 placeholder="Full Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -327,6 +380,8 @@ const Signup = () => {
               <FaEnvelope />
               <input
                 type="email"
+                id="email"
+                name="email"
                 placeholder="Email Address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -340,6 +395,8 @@ const Signup = () => {
               <FaLock />
               <input
                 type="password"
+                id="password"
+                name="password"
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -353,6 +410,8 @@ const Signup = () => {
               <FaLock />
               <input
                 type="password"
+                id="confirmPassword"
+                name="confirmPassword"
                 placeholder="Confirm Password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -365,6 +424,8 @@ const Signup = () => {
             <SelectContainer>
               <FaUserMd />
               <select
+                id="role"
+                name="role"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 required
@@ -378,12 +439,98 @@ const Signup = () => {
             </SelectContainer>
           </FormGroup>
 
+          {/* Role-specific additional fields */}
+          {showAdditionalFields && role === "doctor" && (
+            <>
+              <FormGroup>
+                <InputContainer>
+                  <FaUserMd />
+                  <input
+                    type="text"
+                    id="specialty"
+                    name="specialty"
+                    placeholder="Medical Specialty"
+                    value={specialty}
+                    onChange={(e) => setSpecialty(e.target.value)}
+                    required
+                  />
+                </InputContainer>
+              </FormGroup>
+              <FormGroup>
+                <InputContainer>
+                  <FaKey />
+                  <input
+                    type="text"
+                    id="licenseNumber"
+                    name="licenseNumber"
+                    placeholder="License Number"
+                    value={licenseNumber}
+                    onChange={(e) => setLicenseNumber(e.target.value)}
+                    required
+                  />
+                </InputContainer>
+              </FormGroup>
+            </>
+          )}
+
+          {showAdditionalFields && role === "labtechnician" && (
+            <>
+              <FormGroup>
+                <InputContainer>
+                  <FaFlask />
+                  <input
+                    type="text"
+                    id="specialization"
+                    name="specialization"
+                    placeholder="Specialization"
+                    value={specialization}
+                    onChange={(e) => setSpecialization(e.target.value)}
+                    required
+                  />
+                </InputContainer>
+              </FormGroup>
+              <FormGroup>
+                <InputContainer>
+                  <FaKey />
+                  <input
+                    type="text"
+                    id="licenseNumber"
+                    name="licenseNumber"
+                    placeholder="License Number"
+                    value={licenseNumber}
+                    onChange={(e) => setLicenseNumber(e.target.value)}
+                    required
+                  />
+                </InputContainer>
+              </FormGroup>
+            </>
+          )}
+
+          {showAdditionalFields && role === "admin" && (
+            <FormGroup>
+              <InputContainer>
+                <FaKey />
+                <input
+                  type="text"
+                  id="staffId"
+                  name="staffId"
+                  placeholder="Staff ID"
+                  value={staffId}
+                  onChange={(e) => setStaffId(e.target.value)}
+                  required
+                />
+              </InputContainer>
+            </FormGroup>
+          )}
+
           {needsAdminKey && (
             <FormGroup>
               <InputContainer>
                 <FaKey />
                 <input
                   type="password"
+                  id="adminKey"
+                  name="adminKey"
                   placeholder="Admin Registration Key"
                   value={adminKey}
                   onChange={(e) => setAdminKey(e.target.value)}

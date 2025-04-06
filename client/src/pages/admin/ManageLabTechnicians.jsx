@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
+import api from "../../services/api";
 import {
   FaFlask,
   FaSearch,
@@ -15,8 +16,6 @@ import {
   FaCalendarAlt,
   FaUserMd,
 } from "react-icons/fa";
-import mockApi from "../../services/mockApi";
-
 // Styled Components
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -367,6 +366,7 @@ const ManageLabTechnicians = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [technicianToDelete, setTechnicianToDelete] = useState(null);
   const [editingTechnician, setEditingTechnician] = useState(null);
+  const [departments, setDepartments] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -376,12 +376,14 @@ const ManageLabTechnicians = () => {
     qualification: "",
     experience: "",
     joiningDate: "",
+    licenseNumber: "",
+    gender: "",
   });
 
   useEffect(() => {
-    const fetchTechnicians = async () => {
+    const fetchData = async () => {
       try {
-        const data = await mockApi.getLabTechnicians();
+        const data = await api.getLabTechnicians();
         setTechnicians(data);
         setFilteredTechnicians(data);
       } catch (error) {
@@ -391,7 +393,20 @@ const ManageLabTechnicians = () => {
       }
     };
 
-    fetchTechnicians();
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const departmentsData = await api.getDepartments();
+        setDepartments(departmentsData);
+      } catch (error) {
+        console.error("Error fetching departments:", error);
+      }
+    };
+
+    fetchDepartments();
   }, []);
 
   useEffect(() => {
@@ -401,11 +416,13 @@ const ManageLabTechnicians = () => {
       const filtered = technicians.filter(
         (tech) =>
           tech.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          tech.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (tech.department &&
-            tech.department.toLowerCase().includes(searchTerm.toLowerCase())) ||
           (tech.specialization &&
             tech.specialization
+              .toLowerCase()
+              .includes(searchTerm.toLowerCase())) ||
+          (tech.department &&
+            tech.department.name &&
+            tech.department.name
               .toLowerCase()
               .includes(searchTerm.toLowerCase()))
       );
@@ -424,7 +441,7 @@ const ManageLabTechnicians = () => {
 
   const confirmDelete = async () => {
     try {
-      await mockApi.deleteLabTechnician(technicianToDelete._id);
+      await api.deleteLabTechnician(technicianToDelete._id);
       setTechnicians((prev) =>
         prev.filter((t) => t._id !== technicianToDelete._id)
       );
@@ -444,16 +461,18 @@ const ManageLabTechnicians = () => {
     if (technician) {
       setEditingTechnician(technician);
       setFormData({
-        name: technician.name,
-        email: technician.email,
-        contactNumber: technician.contactNumber || "",
-        department: technician.department || "",
+        name: technician.name || "",
+        email: technician.email || "",
+        contactNumber: technician.phone || technician.contactNumber || "",
+        department: technician.department?._id || technician.department || "",
         specialization: technician.specialization || "",
         qualification: technician.qualification || "",
         experience: technician.experience || "",
         joiningDate: technician.joiningDate
           ? new Date(technician.joiningDate).toISOString().split("T")[0]
           : "",
+        licenseNumber: technician.licenseNumber || "",
+        gender: technician.gender || "",
       });
     } else {
       setEditingTechnician(null);
@@ -466,6 +485,8 @@ const ManageLabTechnicians = () => {
         qualification: "",
         experience: "",
         joiningDate: "",
+        licenseNumber: "",
+        gender: "",
       });
     }
     setShowModal(true);
@@ -482,34 +503,79 @@ const ManageLabTechnicians = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
-      if (editingTechnician) {
-        // Update existing technician
-        await mockApi.updateLabTechnician(editingTechnician._id, formData);
+      if (!formData.name) {
+        alert("Name is required");
+        return;
+      }
 
-        // Update the list
+      if (!formData.email) {
+        alert("Email is required");
+        return;
+      }
+
+      if (!formData.contactNumber) {
+        alert("Contact number is required");
+        return;
+      }
+
+      if (!formData.specialization) {
+        alert("Specialization is required");
+        return;
+      }
+
+      if (!formData.qualification) {
+        alert("Qualification is required");
+        return;
+      }
+
+      if (!formData.licenseNumber) {
+        alert("License number is required");
+        return;
+      }
+
+      const technicianData = {
+        ...formData,
+        phone: formData.contactNumber,
+        experience: formData.experience ? Number(formData.experience) : 0,
+        role: "labtechnician",
+      };
+
+      if (editingTechnician) {
+        await api.updateLabTechnician(editingTechnician._id, technicianData);
         setTechnicians((prev) =>
           prev.map((tech) =>
-            tech._id === editingTechnician._id ? { ...tech, ...formData } : tech
+            tech._id === editingTechnician._id
+              ? { ...tech, ...technicianData }
+              : tech
           )
         );
       } else {
-        // Add new technician
-        const newTechnician = await mockApi.addLabTechnician({
-          ...formData,
-          role: "labtechnician",
-        });
+        const newTechnicianData = {
+          ...technicianData,
+          password: "tempPassword123",
+        };
 
-        // Add to the list
+        const newTechnician = await api.addLabTechnician(newTechnicianData);
         setTechnicians((prev) => [...prev, newTechnician]);
       }
 
-      // Close modal and reset form
       handleCloseModal();
     } catch (error) {
       console.error("Error saving lab technician:", error);
+      alert(`Error: ${error.message || "Failed to save lab technician"}`);
     }
+  };
+
+  const getDepartmentName = (departmentId) => {
+    if (!departmentId) return "Not assigned";
+
+    if (typeof departmentId === "object" && departmentId.name) {
+      return departmentId.name;
+    }
+
+    const department = departments.find((dept) => dept._id === departmentId);
+    return department ? department.name : "Unknown Department";
   };
 
   return (
@@ -594,7 +660,7 @@ const ManageLabTechnicians = () => {
                 <TechnicianDetail>
                   <DetailLabel>Department:</DetailLabel>
                   <DetailValue>
-                    {technician.department || "Not assigned"}
+                    {getDepartmentName(technician.department)}
                   </DetailValue>
                 </TechnicianDetail>
                 <TechnicianDetail>
@@ -614,7 +680,9 @@ const ManageLabTechnicians = () => {
                 <TechnicianDetail>
                   <DetailLabel>Phone:</DetailLabel>
                   <DetailValue>
-                    {technician.contactNumber || "Not provided"}
+                    {technician.phone ||
+                      technician.contactNumber ||
+                      "Not provided"}
                   </DetailValue>
                 </TechnicianDetail>
               </TechnicianContent>
@@ -668,6 +736,7 @@ const ManageLabTechnicians = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     required
+                    disabled={editingTechnician !== null}
                   />
                 </FormGroup>
 
@@ -678,7 +747,23 @@ const ManageLabTechnicians = () => {
                     name="contactNumber"
                     value={formData.contactNumber}
                     onChange={handleInputChange}
+                    required
                   />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>Gender</FormLabel>
+                  <FormSelect
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleInputChange}
+                    required
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </FormSelect>
                 </FormGroup>
 
                 <FormGroup>
@@ -689,13 +774,11 @@ const ManageLabTechnicians = () => {
                     onChange={handleInputChange}
                   >
                     <option value="">Select Department</option>
-                    <option value="Biochemistry">Biochemistry</option>
-                    <option value="Hematology">Hematology</option>
-                    <option value="Microbiology">Microbiology</option>
-                    <option value="Pathology">Pathology</option>
-                    <option value="Immunology">Immunology</option>
-                    <option value="Cytology">Cytology</option>
-                    <option value="Radiology">Radiology</option>
+                    {departments.map((dept) => (
+                      <option key={dept._id} value={dept._id}>
+                        {dept.name}
+                      </option>
+                    ))}
                   </FormSelect>
                 </FormGroup>
 
@@ -706,6 +789,7 @@ const ManageLabTechnicians = () => {
                     name="specialization"
                     value={formData.specialization}
                     onChange={handleInputChange}
+                    required
                   />
                 </FormGroup>
 
@@ -716,6 +800,18 @@ const ManageLabTechnicians = () => {
                     name="qualification"
                     value={formData.qualification}
                     onChange={handleInputChange}
+                    required
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <FormLabel>License Number</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="licenseNumber"
+                    value={formData.licenseNumber}
+                    onChange={handleInputChange}
+                    required
                   />
                 </FormGroup>
 
@@ -751,7 +847,9 @@ const ManageLabTechnicians = () => {
             </ModalContent>
           </ModalOverlay>
         )}
+      </AnimatePresence>
 
+      <AnimatePresence>
         {showConfirmDialog && (
           <ModalOverlay
             initial={{ opacity: 0 }}
@@ -759,30 +857,23 @@ const ManageLabTechnicians = () => {
             exit={{ opacity: 0 }}
           >
             <ConfirmDialog
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
             >
-              <ConfirmMessage>
-                Are you sure you want to delete lab technician "
-                {technicianToDelete.name}"? This action cannot be undone.
-              </ConfirmMessage>
-              <ConfirmActions>
-                <CancelButton
-                  onClick={cancelDelete}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <FaTimes /> Cancel
-                </CancelButton>
-                <ConfirmButton
-                  onClick={confirmDelete}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <FaCheck /> Confirm
-                </ConfirmButton>
-              </ConfirmActions>
+              <h3>Confirm Delete</h3>
+              <p>
+                Are you sure you want to delete{" "}
+                <strong>{technicianToDelete?.name}</strong>?
+              </p>
+              <ConfirmButtons>
+                <Button onClick={cancelDelete} secondary>
+                  Cancel
+                </Button>
+                <Button onClick={confirmDelete} danger>
+                  Delete
+                </Button>
+              </ConfirmButtons>
             </ConfirmDialog>
           </ModalOverlay>
         )}

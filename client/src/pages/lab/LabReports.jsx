@@ -5,9 +5,9 @@ import { FaFileMedical, FaSearch, FaFilter, FaDownload } from "react-icons/fa";
 import PageTransition from "../../components/animations/PageTransition";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
-import mockAuthService from "../../services/mockApi";
 import LabReportCard from "../../components/medical/LabReportCard";
 import ViewLabReport from "../../components/modals/ViewLabReport";
+import api from "../../services/apiService";
 
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -216,7 +216,7 @@ const LabReports = () => {
       if (user?.role === "labtechnician") {
         filters.technician = user._id;
       }
-      const data = await mockAuthService.getLabReports(filters);
+      const data = await api.getLabReports(filters);
       setReports(data);
     } catch (error) {
       console.error("Error fetching lab reports:", error);

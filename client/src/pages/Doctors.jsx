@@ -9,9 +9,8 @@ import {
   FaStar,
   FaCalendarAlt,
 } from "react-icons/fa";
-import api from "../services/api";
-import mockApi from "../services/mockApi";
 import Card from "../components/ui/Card";
+import api from "../services/apiService";
 
 const DoctorsContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -214,8 +213,8 @@ const Doctors = () => {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        // Use mockApi instead of direct API call
-        const response = await mockApi.getDepartments();
+        // Use api instead of mockApi
+        const response = await api.getDepartments();
         setDepartments(response);
       } catch (error) {
         console.error("Error fetching departments:", error);
@@ -233,38 +232,31 @@ const Doctors = () => {
 
         // Prepare filter parameters
         const filters = {};
-
         if (selectedDepartment) {
           filters.department = selectedDepartment;
         }
-
         if (selectedSpecialization) {
           filters.specialization = selectedSpecialization;
         }
 
-        // Use mockApi instead of direct API call
-        const response = await mockApi.getDoctors(filters);
+        // Use api instead of mockApi
+        const response = await api.getDoctors(filters);
 
-        // Ensure we only show active doctors
-        const activeDoctors = response.filter(
-          (doctor) => doctor.isActive !== false
-        );
+        // Ensure response is an array
+        const doctorsArray = Array.isArray(response)
+          ? response
+          : response && response.data
+          ? response.data
+          : [];
 
-        setDoctors(activeDoctors);
-        setFilteredDoctors(activeDoctors);
-
-        // Extract unique specializations
-        const specs = [
-          ...new Set(
-            activeDoctors.map((doc) => doc.specialization).filter(Boolean)
-          ),
-        ];
-        setSpecializations(specs);
-
+        setDoctors(doctorsArray);
+        setFilteredDoctors(doctorsArray);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching doctors:", error);
         setError("Failed to load doctors. Please try again later.");
+        setDoctors([]);
+        setFilteredDoctors([]);
         setLoading(false);
       }
     };
@@ -274,12 +266,18 @@ const Doctors = () => {
 
   // Filter doctors based on search term
   useEffect(() => {
+    if (!Array.isArray(doctors)) {
+      console.error("Doctors is not an array:", doctors);
+      setFilteredDoctors([]);
+      return;
+    }
+
     if (searchTerm.trim() === "") {
       setFilteredDoctors(doctors);
     } else {
       const filtered = doctors.filter(
         (doc) =>
-          doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          doc.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (doc.specialization &&
             doc.specialization
               .toLowerCase()
@@ -341,11 +339,12 @@ const Doctors = () => {
           onChange={handleDepartmentChange}
         >
           <option value="">All Departments</option>
-          {departments.map((dept) => (
-            <option key={dept._id} value={dept._id}>
-              {dept.name}
-            </option>
-          ))}
+          {Array.isArray(departments) &&
+            departments.map((dept) => (
+              <option key={dept._id} value={dept._id}>
+                {dept.name}
+              </option>
+            ))}
         </FilterSelect>
 
         <FilterSelect
@@ -354,28 +353,29 @@ const Doctors = () => {
           disabled={specializations.length === 0}
         >
           <option value="">All Specializations</option>
-          {specializations.map((spec) => (
-            <option key={spec} value={spec}>
-              {spec}
-            </option>
-          ))}
+          {Array.isArray(specializations) &&
+            specializations.map((spec) => (
+              <option key={spec} value={spec}>
+                {spec}
+              </option>
+            ))}
         </FilterSelect>
       </FiltersContainer>
 
-      {filteredDoctors.length === 0 ? (
+      {!Array.isArray(filteredDoctors) || filteredDoctors.length === 0 ? (
         <ErrorMessage>No doctors found matching your criteria.</ErrorMessage>
       ) : (
         <DoctorsGrid>
           {filteredDoctors.map((doctor) => (
             <DoctorCard
-              key={doctor._id}
+              key={doctor._id || `doctor-${Math.random()}`}
               whileHover={{ y: -5 }}
               transition={{ duration: 0.2 }}
             >
               <DoctorHeader>
                 <DoctorAvatar image={doctor.profileImage} />
                 <DoctorInfo>
-                  <DoctorName>Dr. {doctor.name}</DoctorName>
+                  <DoctorName>Dr. {doctor.name || "Unknown"}</DoctorName>
                   {doctor.specialization && (
                     <DoctorSpecialization>
                       {doctor.specialization}
@@ -383,7 +383,8 @@ const Doctors = () => {
                   )}
                   {doctor.department && (
                     <DoctorDepartment>
-                      {typeof doctor.department === "object"
+                      {typeof doctor.department === "object" &&
+                      doctor.department.name
                         ? doctor.department.name
                         : "Department information not available"}
                     </DoctorDepartment>

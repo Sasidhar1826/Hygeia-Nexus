@@ -20,6 +20,7 @@ import { AnimatePresence } from "framer-motion";
 import { Player } from "@lottiefiles/react-lottie-player";
 import DashboardLayout from "./components/dashboard/DashboardLayout";
 import AdminLayout from "./components/dashboard/AdminLayout";
+import DevTools from "./components/DevTools";
 
 // Loading animation
 const LoadingFallback = () => (
@@ -302,6 +303,7 @@ function App() {
           future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
         >
           <AnimatedRoutes />
+          <DevTools />
         </Router>
       </AuthProvider>
     </ThemeProvider>

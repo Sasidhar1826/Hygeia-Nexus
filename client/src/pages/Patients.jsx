@@ -6,8 +6,7 @@ import { Link } from "react-router-dom";
 import AnimationContainer from "../components/animations/AnimationContainer";
 import PageTransition from "../components/animations/PageTransition";
 import { childVariants } from "../components/animations/PageTransition";
-import mockApi from "../services/mockApi";
-
+import api from "../services/apiService";
 const PageHeader = styled.div`
   display: flex;
   justify-content: space-between;
@@ -156,12 +155,13 @@ const Patients = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    // Fetch patients from mockApi
+    // Fetch patients from api
     const fetchPatients = async () => {
       try {
         setLoading(true);
-        // Fetch real patient data from mockApi
-        const response = await mockApi.getPatients();
+
+        // Fetch real patient data from api
+        const response = await api.getPatients();
         console.log("Fetched patients from API:", response);
 
         // Format patients data to match the expected structure

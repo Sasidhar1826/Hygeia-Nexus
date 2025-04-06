@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import styled from "styled-components";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import PageTransition from "../components/animations/PageTransition";
 import { childVariants } from "../components/animations/PageTransition";
 import AnimationContainer from "../components/animations/AnimationContainer";
@@ -28,13 +28,15 @@ import ViewLabReport from "../components/modals/ViewLabReport";
 import SmartDiagnosisModal from "../components/modals/SmartDiagnosisModal";
 import AIDiagnosticHistoryModal from "../components/modals/AIDiagnosticHistoryModal";
 import PrescriptionModal from "../components/modals/PrescriptionModal";
-import mockApi from "../services/mockApi";
 import MedicalReportCard from "../components/medical/MedicalReportCard";
 import LabReportCard from "../components/medical/LabReportCard";
+import api from "../services/apiService";
 import {
   getFormattedLabReports,
   getFormattedMedicalRecords,
 } from "../services/medicalDataFormatters";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
 
 const PageHeader = styled.div`
   display: flex;
@@ -71,39 +73,6 @@ const Title = styled.h1`
 const ActionButtons = styled.div`
   display: flex;
   gap: ${(props) => props.theme.spacing(2)};
-`;
-
-const Button = styled(motion.button)`
-  display: flex;
-  align-items: center;
-  gap: ${(props) => props.theme.spacing(1)};
-  padding: ${(props) => props.theme.spacing(1)}
-    ${(props) => props.theme.spacing(2)};
-  border-radius: ${(props) => props.theme.borderRadius.medium};
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  background-color: ${(props) =>
-    props.variant === "danger"
-      ? props.theme.colors.status.error
-      : props.variant === "secondary"
-      ? props.theme.colors.background.paper
-      : props.theme.colors.primary.main};
-  color: ${(props) =>
-    props.variant === "secondary" ? props.theme.colors.text.primary : "white"};
-  border: ${(props) =>
-    props.variant === "secondary"
-      ? `1px solid ${props.theme.colors.border.main}`
-      : "none"};
-
-  &:hover {
-    background-color: ${(props) =>
-      props.variant === "danger"
-        ? props.theme.colors.status.errorDark
-        : props.variant === "secondary"
-        ? props.theme.colors.background.default
-        : props.theme.colors.primary.dark};
-  }
 `;
 
 const ContentContainer = styled.div`
@@ -460,9 +429,9 @@ const PatientDetails = () => {
       setLoading(true);
       console.log("Fetching patient with ID:", id);
 
-      // Fetch patient data from mockApi
+      // Fetch patient data from api
       try {
-        const patientData = await mockApi.getPatientById(id);
+        const patientData = await api.getPatientById(id);
         console.log("Fetched patient data:", patientData);
 
         if (patientData) {
@@ -482,7 +451,7 @@ const PatientDetails = () => {
           // Fetch patient summary data
           try {
             setSummaryLoading(true);
-            const summary = await mockApi.getPatientSummary(id);
+            const summary = await api.getPatientSummary(id);
             if (summary) {
               setPatientSummary(summary);
             } else {
@@ -503,9 +472,9 @@ const PatientDetails = () => {
         return;
       }
 
-      // Fetch appointments from mockApi
+      // Fetch appointments from api
       try {
-        const appointmentsResponse = await mockApi.getAppointments({
+        const appointmentsResponse = await api.getAppointments({
           patient: id,
         });
         console.log("Fetched appointments:", appointmentsResponse);

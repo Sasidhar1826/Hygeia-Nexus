@@ -365,7 +365,28 @@ const PatientSignup = () => {
     setIsLoading(true);
 
     try {
+      // Create full name from first and last name
+      const name = `${firstName} ${lastName}`.trim();
+
+      // Convert allergies and existingConditions to arrays if they're strings
+      const allergiesArray =
+        typeof allergies === "string"
+          ? allergies
+              .split(",")
+              .map((item) => item.trim())
+              .filter((item) => item !== "")
+          : allergies || [];
+
+      const conditionsArray =
+        typeof existingConditions === "string"
+          ? existingConditions
+              .split(",")
+              .map((item) => item.trim())
+              .filter((item) => item !== "")
+          : existingConditions || [];
+
       const userData = {
+        name, // Add the name field for backend compatibility
         email,
         password,
         firstName,
@@ -375,22 +396,29 @@ const PatientSignup = () => {
         phoneNumber,
         aadhaarNumber,
         bloodGroup,
-        allergies,
-        existingConditions,
+        allergies: allergiesArray,
+        existingConditions: conditionsArray,
         address: {
           street: address,
           city,
           state,
           pincode,
         },
-        role: "patient",
+        role: "patient", // Backend now supports both 'role' and 'userType'
       };
 
+      console.log("Submitting patient signup data:", {
+        ...userData,
+        password: "[REDACTED]",
+      });
       await signup(userData);
       navigate("/dashboard");
     } catch (err) {
+      console.error("Patient signup error:", err);
       setError(
-        err.response?.data?.message || "Registration failed. Please try again."
+        err.response?.data?.message ||
+          err.message ||
+          "Registration failed. Please try again."
       );
     } finally {
       setIsLoading(false);
@@ -419,6 +447,8 @@ const PatientSignup = () => {
                 <FaEnvelope />
                 <input
                   type="email"
+                  id="email"
+                  name="email"
                   placeholder="email@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -435,6 +465,8 @@ const PatientSignup = () => {
                 <FaLock />
                 <input
                   type="password"
+                  id="password"
+                  name="password"
                   placeholder="At least 6 characters"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -451,6 +483,8 @@ const PatientSignup = () => {
                 <FaLock />
                 <input
                   type="password"
+                  id="confirmPassword"
+                  name="confirmPassword"
                   placeholder="Repeat your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -482,6 +516,8 @@ const PatientSignup = () => {
                   <FaUser />
                   <input
                     type="text"
+                    id="firstName"
+                    name="firstName"
                     placeholder="First Name"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
@@ -498,6 +534,8 @@ const PatientSignup = () => {
                   <FaUser />
                   <input
                     type="text"
+                    id="lastName"
+                    name="lastName"
                     placeholder="Last Name"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}

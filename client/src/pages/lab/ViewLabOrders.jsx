@@ -15,8 +15,8 @@ import {
 import PageTransition from "../../components/animations/PageTransition";
 import AnimationContainer from "../../components/animations/AnimationContainer";
 import { useAuth } from "../../context/AuthContext";
-import mockAuthService from "../../services/mockApi";
 import { Link } from "react-router-dom";
+import api from "../../services/apiService";
 
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
@@ -253,7 +253,7 @@ const ViewLabOrders = () => {
         filters.technician = user._id;
       }
 
-      const response = await mockAuthService.getLabOrders(filters);
+      const response = await api.getLabOrders(filters);
       setOrders(response);
     } catch (error) {
       console.error("Error fetching lab orders:", error);
@@ -278,7 +278,7 @@ const ViewLabOrders = () => {
         updateData.technician = user._id;
       }
 
-      await mockAuthService.updateLabOrder(orderId, updateData);
+      await api.updateLabOrder(orderId, updateData);
 
       // Refresh the orders list
       fetchLabOrders();

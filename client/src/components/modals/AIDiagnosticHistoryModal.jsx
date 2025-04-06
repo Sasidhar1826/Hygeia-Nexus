@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import { motion, AnimatePresence } from "framer-motion";
+import api from "../../services/apiService";
 import {
   FaBrain,
   FaTimesCircle,
@@ -10,7 +11,6 @@ import {
   FaChevronRight,
   FaChevronDown,
 } from "react-icons/fa";
-import mockApi from "../../services/mockApi";
 
 const ModalOverlay = styled(motion.div)`
   position: fixed;
@@ -250,32 +250,31 @@ const AIDiagnosticHistoryModal = ({ isOpen, onClose, patientId }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    const fetchDiagnosticHistory = async () => {
+      try {
+        setLoading(true);
+        // Fetch AI diagnostic history for the patient
+        const history = await api.getAIDiagnosticHistory(patientId);
+        setDiagnosticHistory(history);
+        setLoading(false);
+
+        // Initialize expanded state for all items
+        const initialExpandedState = {};
+        history.forEach((item) => {
+          initialExpandedState[item._id] = false;
+        });
+        setExpandedItems(initialExpandedState);
+      } catch (error) {
+        console.error("Error fetching AI diagnostic history:", error);
+        setError("Failed to load diagnostic history");
+        setLoading(false);
+      }
+    };
+
     if (isOpen && patientId) {
       fetchDiagnosticHistory();
     }
   }, [isOpen, patientId]);
-
-  const fetchDiagnosticHistory = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const history = await mockApi.getAIDiagnosticHistory(patientId);
-      setDiagnosticHistory(history);
-      setLoading(false);
-
-      // Initialize expanded state for all items
-      const initialExpandedState = {};
-      history.forEach((item) => {
-        initialExpandedState[item._id] = false;
-      });
-      setExpandedItems(initialExpandedState);
-    } catch (error) {
-      console.error("Error fetching AI diagnostic history:", error);
-      setError("Failed to load diagnostic history");
-      setLoading(false);
-    }
-  };
 
   const toggleExpand = (id) => {
     setExpandedItems((prev) => ({

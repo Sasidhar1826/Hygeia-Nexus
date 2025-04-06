@@ -16,9 +16,7 @@ import {
 } from "react-icons/fa";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
-import api from "../../services/api";
-import mockApi from "../../services/mockApi";
-
+import api from "../../services/apiService";
 const PageContainer = styled.div`
   padding: ${(props) => props.theme.spacing(3)};
 `;
@@ -254,8 +252,8 @@ const ManageDepartments = () => {
   const fetchDepartments = async () => {
     try {
       setLoading(true);
-      // Use mockApi to get departments
-      const departmentsData = await mockApi.getDepartments();
+      // Use api to get departments
+      const departmentsData = await api.getDepartments();
       setDepartments(departmentsData);
       setFilteredDepartments(departmentsData);
       setLoading(false);
@@ -268,8 +266,8 @@ const ManageDepartments = () => {
 
   const fetchDoctors = async () => {
     try {
-      // Use mockApi to get doctors
-      const response = await mockApi.getDoctors();
+      // Use api to get doctors
+      const response = await api.getDoctors();
       setDoctors(response);
     } catch (error) {
       console.error("Error fetching doctors:", error);
@@ -326,8 +324,8 @@ const ManageDepartments = () => {
           isActive: true,
         };
 
-        // Use mockApi to add a new department
-        const newDepartment = await mockApi.addDepartment(departmentData);
+        // Use api to add a new department
+        const newDepartment = await api.createDepartment(departmentData);
 
         // Update local state with the new department
         setDepartments([...departments, newDepartment]);
@@ -339,8 +337,8 @@ const ManageDepartments = () => {
           isActive: currentDepartment.isActive,
         };
 
-        // Use mockApi to update the department
-        const updatedDepartment = await mockApi.updateDepartment(
+        // Use api to update the department
+        const updatedDepartment = await api.updateDepartment(
           currentDepartment._id,
           departmentData
         );
@@ -363,8 +361,8 @@ const ManageDepartments = () => {
 
   const handleDelete = async (departmentId) => {
     try {
-      // Use mockApi to delete department
-      await mockApi.deleteDepartment(departmentId);
+      // Use api to delete department
+      await api.deleteDepartment(departmentId);
 
       // Update local state after successful deletion
       const updatedDepartments = departments.filter(
@@ -387,8 +385,8 @@ const ManageDepartments = () => {
         isActive: !department.isActive,
       };
 
-      // Use mockApi to update department (or simulate update)
-      await mockApi.updateDepartment(department._id, updatedDepartment);
+      // Use api to update department
+      await api.updateDepartment(department._id, updatedDepartment);
 
       // Update the local state directly
       const updatedDepartments = departments.map((dept) =>

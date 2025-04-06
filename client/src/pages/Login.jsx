@@ -249,19 +249,19 @@ const Login = () => {
     switch (selectedRole) {
       case "admin":
         setEmail("admin@example.com");
-        setPassword("password123");
+        setPassword("admin123");
         break;
       case "doctor":
-        setEmail("doctor@example.com");
-        setPassword("password123");
+        setEmail("jane.smith@example.com");
+        setPassword("doctor123");
         break;
       case "labtechnician":
-        setEmail("lab@example.com");
-        setPassword("password123");
+        setEmail("rahul.verma@example.com");
+        setPassword("labtech123");
         break;
       case "patient":
-        setEmail("patient@example.com");
-        setPassword("password123");
+        setEmail("amit.sharma@example.com");
+        setPassword("patient123");
         break;
       default:
         setEmail("");
@@ -294,7 +294,10 @@ const Login = () => {
 
     try {
       const userData = await login(email, password, selectedRole);
-      redirectBasedOnRole(userData.role);
+
+      // Use userType for redirection if available, otherwise fallback to role
+      const userRole = userData.userType || userData.role;
+      redirectBasedOnRole(userRole);
     } catch (err) {
       setError(err.response?.data?.message || "Invalid email or password");
     } finally {
@@ -391,6 +394,8 @@ const Login = () => {
             <FaEnvelope />
             <input
               type="email"
+              id="email"
+              name="email"
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -402,6 +407,8 @@ const Login = () => {
             <FaLock />
             <input
               type="password"
+              id="password"
+              name="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
